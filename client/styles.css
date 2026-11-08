@@ -660,3 +660,55 @@
   font-size: 13px; line-height: 20px; color: var(--ip-ink);
 }
 .ip-next-step-label { flex: none; font-size: 11px; font-weight: 650; color: var(--ip-business); letter-spacing: .04em; }
+
+/* ---------- 列表 / 梳理视图 ---------- */
+.ip-list-viewbar {
+  flex: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px 6px;
+  border-bottom: 1px solid var(--ip-line);
+}
+.ip-view-switch { display: inline-flex; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ip-hover); }
+.ip-view-switch button { height: 23px; padding: 0 9px; border-radius: 5px; font-size: 12px; color: var(--ip-ink3); }
+.ip-view-switch button.is-on { background: var(--ip-card); color: var(--ip-ink); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, #000 8%, transparent); }
+.ip-list-count { margin-left: auto; font-size: 11.5px; color: var(--ip-ink4); font-variant-numeric: tabular-nums; }
+.ip-root.is-review .ip-sort { display: none; }
+.ip-review { padding: 10px 12px 22px; }
+.ip-review-summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border: 1px solid var(--ip-line); border-radius: var(--ip-r-md);
+  background: var(--ip-card);
+}
+.ip-review-summary > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ip-review-summary strong { font-size: 13px; font-weight: 650; color: var(--ip-ink); }
+.ip-review-summary span { font-size: 11.5px; color: var(--ip-ink3); }
+.ip-review-summary .ip-btn { margin-left: auto; flex: none; }
+.ip-review-section { margin-top: 14px; }
+.ip-review-head {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 6px 2px 7px; width: 100%; text-align: left;
+}
+.ip-review-head h3 { margin: 0; font-size: 12.5px; font-weight: 650; color: var(--ip-ink); letter-spacing: .02em; }
+.ip-review-count { font-size: 11px; font-weight: 600; color: var(--ip-ink3); background: var(--ip-hover); border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums; }
+.ip-review-hint { font-size: 11.5px; color: var(--ip-ink4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-review-action { margin-left: auto; flex: none; display: inline-flex; align-items: center; color: var(--ip-ink3); }
+.ip-review-head.is-button { border: 0; cursor: pointer; }
+.ip-review-head.is-button:hover h3 { color: var(--ip-ink); }
+.ip-review-rows { display: flex; flex-direction: column; gap: 1px; }
+.ip-review-row {
+  display: flex; align-items: flex-start; gap: 9px;
+  width: 100%; padding: 8px 7px; border-radius: 7px;
+  text-align: left; color: var(--ip-ink2);
+}
+.ip-review-row:hover { background: var(--ip-hover); }
+.ip-review-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--ip-ink3); }
+.ip-review-dot.is-pool { background: var(--ip-ink3); }
+.ip-review-dot.is-active { background: var(--ip-business); }
+.ip-review-dot.is-done { background: var(--ip-success); }
+.ip-review-dot.is-parked { background: var(--ip-warn); }
+.ip-review-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ip-review-title { font-size: 13.5px; font-weight: 600; line-height: 19px; color: var(--ip-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-review-sum { font-size: 12px; line-height: 17px; color: var(--ip-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-review-meta { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 10.5px; line-height: 15px; color: var(--ip-ink4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ip-review-meta .is-stale { color: var(--ip-warn); font-weight: 600; }
+.ip-root.is-narrow .ip-review { padding: 8px 10px 20px; }

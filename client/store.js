@@ -25,6 +25,7 @@ let snapshot = {
   status: 'all',
   query: '',
   sortBy: 'created',
+  view: 'list',
   ideas: [],
   listLoading: false,
   selectedNo: null,
@@ -265,6 +266,10 @@ export async function refresh({ quiet = false } = {}) {
 /* ---------- 筛选 / 选中 ---------- */
 
 let queryTimer = null
+
+export function setView(view) {
+  set({ view: view === 'review' ? 'review' : 'list' })
+}
 
 export function setSortBy(sortBy) {
   set({ sortBy: sortBy === 'updated' ? 'updated' : 'created' })

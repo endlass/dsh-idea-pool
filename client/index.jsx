@@ -21,6 +21,7 @@ import {
   setFilter,
   setQuery,
   setSortBy,
+  setView,
   testCloud,
   toast,
   undo,
@@ -112,6 +113,24 @@ function parseTags(value) {
 
 function countText(count, oneKey, otherKey) {
   return t(count === 1 ? oneKey : otherKey, { n: count })
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** 距今天数；用于「久未推进」判断。 */
+function daysSince(iso) {
+  const time = new Date(iso || 0).getTime()
+  if (!time || Number.isNaN(time)) return 0
+  return Math.max(0, Math.floor((Date.now() - time) / DAY_MS))
+}
+
+/** 梳理视图的一行：优先摘要首句，没有摘要就退回原文首句。 */
+function reviewLine(idea) {
+  const source = String(idea.summary || '').trim() || String(idea.raw_text || '').trim()
+  const text = source.replace(/\s+/g, ' ')
+  if (!text) return ''
+  const first = text.split(/[。！？!?]/)[0].trim() || text
+  return first.length > 90 ? first.slice(0, 90) + '…' : first
 }
 
 /** 复制展开指令：沿用网站文案的纪律骨架，本机模式把「读全量」指到本机入口。 */
@@ -416,6 +435,112 @@ function IdeaCard({ idea, active, highlight, onClick }) {
   )
 }
 
+function ReviewRow({ idea }) {
+  const stale = idea.status === 'active' && daysSince(idea.updated_at) > 14
+  const meta = idea.status === 'pool'
+    ? t('入池 {n} 天', { n: daysSince(idea.created_at) })
+    : stale
+      ? t('{n} 天未动', { n: daysSince(idea.updated_at) })
+      : formatShortTime(idea.updated_at)
+  return (
+    <button type="button" className="ip-review-row" onClick={() => selectIdea(idea.idea_no)}>
+      <i className={`ip-review-dot is-${idea.status}`} aria-hidden="true" />
+      <span className="ip-review-main">
+        <span className="ip-review-title">{displayTitle(idea)}</span>
+        <span className="ip-review-sum">{reviewLine(idea)}</span>
+      </span>
+      <span className="ip-review-meta">
+        <span className={stale ? 'is-stale' : ''}>{meta}</span>
+        {idea.n_updates ? <span>{t('{n} 进展', { n: idea.n_updates })}</span> : null}
+      </span>
+    </button>
+  )
+}
+
+function ReviewSection({ title, hint, items, action }) {
+  if (!items.length) return null
+  return (
+    <section className="ip-review-section">
+      <div className="ip-review-head">
+        <h3>{title}</h3>
+        <span className="ip-review-count">{items.length}</span>
+        <span className="ip-review-hint">{hint}</span>
+        {action ? <span className="ip-review-action">{action}</span> : null}
+      </div>
+      <div className="ip-review-rows">
+        {items.map(idea => <ReviewRow key={idea.idea_no} idea={idea} />)}
+      </div>
+    </section>
+  )
+}
+
+function ReviewView() {
+  const ideas = useStore(s => s.ideas)
+  const status = useStore(s => s.status)
+  const [archivedOpen, setArchivedOpen] = React.useState(false)
+  React.useEffect(() => {
+    if (status === 'done' || status === 'parked') setArchivedOpen(true)
+  }, [status])
+  const pending = ideas.filter(idea => idea.status === 'pool')
+  const active = ideas.filter(idea => idea.status === 'active')
+  const stale = active.filter(idea => daysSince(idea.updated_at) > 14).sort((a, b) => daysSince(b.updated_at) - daysSince(a.updated_at))
+  const moving = active.filter(idea => daysSince(idea.updated_at) <= 14).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+  const archived = ideas.filter(idea => idea.status === 'done' || idea.status === 'parked')
+  const doneCount = ideas.filter(idea => idea.status === 'done').length
+  const parkedCount = ideas.filter(idea => idea.status === 'parked').length
+  const pickRandom = () => {
+    const pool = pending.length ? pending : stale.length ? stale : moving.length ? moving : ideas
+    if (!pool.length) return
+    const picked = pool[Math.floor(Math.random() * pool.length)]
+    toast(t('随机捞到 {no}，看看有没有遗漏。', { no: picked.idea_no }))
+    selectIdea(picked.idea_no)
+  }
+  return (
+    <div className="ip-scroll">
+      <div className="ip-review">
+        <div className="ip-review-summary">
+          <div>
+            <strong>{t('{n} 条想法', { n: ideas.length })}</strong>
+            <span>{t('{n} 待决定', { n: pending.length })} · {t('{n} 久未推进', { n: stale.length })} · {t('{n} 最近推进', { n: moving.length })}</span>
+          </div>
+          <Button size="sm" variant="ghost" icon="spark" onClick={pickRandom} disabled={!ideas.length}>{t('随机捞一条')}</Button>
+        </div>
+        <ReviewSection
+          title={t('待决定')}
+          hint={t('记下来还没开始的，先捞一条看看')}
+          items={pending}
+          action={pending.length ? <Button size="sm" variant="ghost" onClick={pickRandom}>{t('随机一条')}</Button> : null}
+        />
+        <ReviewSection
+          title={t('该推进了')}
+          hint={t('超过 14 天没动，最久未动的排前面')}
+          items={stale}
+        />
+        <ReviewSection
+          title={t('正在推进')}
+          hint={t('最近 14 天有更新')}
+          items={moving}
+        />
+        {archived.length ? (
+          <section className="ip-review-section is-archived">
+            <button type="button" className="ip-review-head is-button" aria-expanded={archivedOpen} onClick={() => setArchivedOpen(value => !value)}>
+              <h3>{t('已收口 / 搁置')}</h3>
+              <span className="ip-review-count">{archived.length}</span>
+              <span className="ip-review-hint">{t('已收口 {done} · 搁置 {parked}', { done: doneCount, parked: parkedCount })}</span>
+              <span className="ip-review-action"><Icon name={archivedOpen ? 'chevD' : 'chevR'} size={13} /></span>
+            </button>
+            {archivedOpen ? (
+              <div className="ip-review-rows">
+                {archived.map(idea => <ReviewRow key={idea.idea_no} idea={idea} />)}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function ListView({ narrow }) {
   const ideas = useStore(s => s.ideas)
   const listLoading = useStore(s => s.listLoading)
@@ -424,6 +549,7 @@ function ListView({ narrow }) {
   const selectedNo = useStore(s => s.selectedNo)
   const mode = useStore(s => s.mode)
   const sortBy = useStore(s => s.sortBy)
+  const view = useStore(s => s.view)
   const newIdeaNo = useStore(s => s.newIdeaNo)
   const scrollRef = React.useRef(null)
   const filtered = status !== 'all' || Boolean(query.trim())
@@ -463,6 +589,7 @@ function ListView({ narrow }) {
       </Empty>
     )
   }
+  if (view === 'review') return <ReviewView />
   return (
     <div className="ip-scroll" ref={scrollRef}>
       <div className="ip-list">
@@ -1290,7 +1417,9 @@ export function App() {
   const status = useStore(s => s.status)
   const query = useStore(s => s.query)
   const selectedNo = useStore(s => s.selectedNo)
+  const total = useStore(s => s.total)
   const suppressAutoSelect = useStore(s => s.suppressAutoSelect)
+  const view = useStore(s => s.view)
   const rootRef = React.useRef(null)
   const searchRef = React.useRef(null)
   const [width, setWidth] = React.useState(1200)
@@ -1347,7 +1476,7 @@ export function App() {
   const highlightCapture = booted && !loading && !error && ideas.length === 0 && status === 'all' && !query.trim()
 
   return (
-    <div className={`ip-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''} ${readingDetail ? 'is-reading' : ''}`} ref={rootRef}>
+    <div className={`ip-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''} ${readingDetail ? 'is-reading' : ''} ${view === 'review' ? 'is-review' : ''}`} ref={rootRef}>
       <style>{css}</style>
       <TopBar searchRef={searchRef} onOpenSettings={() => setSettingsOpen(true)} />
       {readingDetail ? null : <CaptureBar highlight={highlightCapture} />}
@@ -1366,6 +1495,13 @@ export function App() {
           <>
             {showList ? (
               <div className="ip-list-pane">
+                <div className="ip-list-viewbar">
+                  <div className="ip-view-switch" role="group" aria-label={t('视图')}>
+                    <button type="button" className={view === 'list' ? 'is-on' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}>{t('列表')}</button>
+                    <button type="button" className={view === 'review' ? 'is-on' : ''} aria-pressed={view === 'review'} onClick={() => setView('review')}>{t('梳理')}</button>
+                  </div>
+                  <span className="ip-list-count">{t('{n} 条', { n: total })}</span>
+                </div>
                 <ListView narrow={narrow} />
               </div>
             ) : null}

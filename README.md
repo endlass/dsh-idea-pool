@@ -32,6 +32,17 @@ dsh plugin --profile desktop add "file:$PWD"
 
 云端模式（P2）尚未实现；实现后同一套 UI 增加「云端模式」，走现有 ideas-api。
 
+## 从云端导入（单向迁移）
+
+P2 之前的临时通道，把云端 ideas-api 已有内容搬到本机模式，方便先看效果：
+
+```bash
+node scripts/import-cloud.mjs --dry-run   # 只看统计，不写盘
+node scripts/import-cloud.mjs             # 合并写入 $DSH_HOME/idea-pool/state.json
+```
+
+默认读 `~/.hermes/ideas-api.key`（或 `~/.dsh/ideas-api.key`）向 `https://www.zhaoningyuan.com/ideas/api` 拉全量；按 `idea_no` 合并，本地已有条目的进展/产出按 id 取并集，不丢本机独有内容；写前备份为 `state.json.pre-import-<时间>.bak`。**这是单向导入**：之后本机的新想法/进展不会自动回写云端，云端模式在 P2 做。
+
 ## 开发
 
 ```bash

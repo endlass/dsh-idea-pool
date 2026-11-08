@@ -1,0 +1,4 @@
+# dsh-idea-pool bundle patch：同一个包提供 host 半片与浏览器半片
+- insert:
+    - id: idea-pool
+      name: 'dsh-idea-pool'

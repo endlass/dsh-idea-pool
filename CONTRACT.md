@@ -223,3 +223,78 @@ npm run build && node --check client.js
 
 - 云端模式、同步、导入（export 之外的迁移）、附件、多用户、权限、认领机制、移动端原生。
 - 不修改现有 `ideas-api`、网站、CLI 与 preset。
+
+## 11. v0.2 云端模式增量（2026-11-08）
+
+v0.1 的「只做本机」作废；以下为 P2 增量，未提到的地方保持 v0.1 约定。
+
+### 11.1 设置与模式
+
+`settings.json`（600）新增：
+
+```jsonc
+{
+  "device": "dsh-mac",
+  "mode": "local",                       // local | cloud
+  "cloud": {
+    "base": "https://www.zhaoningyuan.com/ideas/api",
+    "apiKey": ""                         // 只落盘，永不回传
+  }
+}
+```
+
+- `CLOUD_DEFAULT_BASE = https://www.zhaoningyuan.com/ideas/api`；base 只接受 http(s)，去尾斜杠。
+- `GET /api/settings` 返回：`{ ok, settings: { device, mode, storagePath, cloud: { base, hasKey, keyHint } } }`。keyHint 为末四位；永不返回 apiKey。
+- `POST /api/settings` 接受 `{ device?, mode?, cloud?: { base?, apiKey?, clearKey? } }`：
+  - mode 只允许 local / cloud；
+  - cloud.base 字符串，http(s)，去尾斜杠；
+  - cloud.apiKey 非空字符串才更新（空串/缺省表示不改）；clearKey=true 清空；
+  - 返回同上公开设置。
+
+### 11.2 新端点
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/cloud/test` | body `{ base?, apiKey? }`；用请求里的覆盖值或已存配置，GET `{base}/health`；成功 `{ ok:true, base, count, latencyMs }`；失败 502 `{ok:false,error}`。永不回显 key。 |
+| POST | `/api/cloud/import-local` | 用已存云端配置拉全量（列表 + 每条详情），按 idea_no 合并进本机 store；返回 `{ ok, imported, updated, total }`。不切换模式；未配置 key 时 400。 |
+
+### 11.3 现有端点的模式行为
+
+- 除 settings / cloud/test / cloud/import-local 外，所有接口按 `settings.mode` 路由到 active engine（local 或 cloud）。
+- `GET /api/state`：`{ ok, mode, storagePath, cloudBase, device, canUndo, counts, total, ideas }`；
+  - local：storagePath=本机 state.json，cloudBase=null；
+  - cloud：storagePath=null，cloudBase=settings.cloud.base，canUndo 恒 false。
+- `GET /health`：`{ ok, mode, count }`，count 取 active engine。
+- 云端模式下 `POST /api/undo`：409 `{ ok:false, error:"云端模式暂不支持撤销" }`。
+- `GET /api/export`：导出 active engine 数据（本机同 v0.1；云端为全量列表+详情合并后的 `{schema:1,device,exported_at,ideas}`）。
+- `counts` 形状：`{ pool, active, parked, done, total }`（云端列表接口已返回，直接用）。
+
+### 11.4 CloudEngine 行为
+
+- 基址取 settings.cloud.base，请求头 `X-API-Key`；超时 15s。
+- list `GET /ideas?status=&q=&limit=&offset=`；detail `GET /ideas/{no}`；add `POST /ideas`；update 先 `GET /ideas/{no}` 取 rev，再 `PATCH /ideas/{no}` 并带 `if_rev: rev`；progress/link `POST ...` 带 `client_id`（`u_<ts>_<rand>` / `l_<ts>_<rand>`）；delete `DELETE`。
+- 错误映射：
+  - 401/403 → `ContractError("云端鉴权失败，请检查 API Key", 401)`
+  - 409（if_rev 冲突）→ `ContractError("云端这条想法已被其他端更新，请刷新后重试", 409)`
+  - 网络/超时 → `ContractError("连不上云端：<message>", 502)`
+  - 其他非 2xx → `ContractError("云端接口出错（HTTP n）：<error>", 502)`
+- 密钥不出现在错误文案、日志与返回值里。
+
+### 11.5 Client 增量
+
+- 顶栏模式徽标：本机模式 / 云端模式；云端模式下不显示撤销按钮。
+- 设置对话框：
+  - 运行模式切换（本机 / 云端）；说明文字随模式变化；
+  - 云端配置：base URL、API key（password；已保存时占位「已保存，末四位 xxxx」，留空表示不改）、「测试连接」按钮（显示条数与延迟）、「保存」；
+  - 「从云端导入到本机」按钮（调用 11.2，成功 toast 导入条数）；
+  - 本机模式继续显示存储路径与导出 JSON。
+- 详情「复制链接」：本机模式复制本机引用文本；云端模式复制 `https://www.zhaoningyuan.com/ideas/#IDEA-xxx`（与网站一致）。
+- 云端 409/401/502 错误用 error toast 展示；409 后自动刷新当前列表/详情。
+
+### 11.6 服务端（ideas-api）增量（向后兼容）
+
+- `ideas` 增加 `rev integer not null default 0`；PATCH 时 `rev = rev + 1`，响应 idea 带 rev。
+- PATCH 接受可选 `if_rev`（整数）：带值时 SQL 增加 `AND rev = %s`，未命中返回 409 JSON `{ ok:false, error:"version conflict", current: {...idea_out} }`。
+- `idea_updates` / `idea_links` 增加可空 `client_id text`，各自建 `(idea_id, client_id)` 部分唯一索引；POST 带 client_id 时重复插入返回已存在行（200），并返回最新 `idea`。
+- POST updates/links 成功后把所属 idea 的 `rev = rev + 1`、`updated_at = now()`，响应带最新 idea。
+- 不带 if_rev / client_id 的旧客户端（网站、ideas.py）行为不变。

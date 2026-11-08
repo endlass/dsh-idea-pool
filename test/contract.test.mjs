@@ -15,6 +15,7 @@ import {
   normalizeLink,
   normalizePatch,
   normalizeProgress,
+  normalizeCloudBase,
   normalizeSettingsPatch,
   normalizeState,
   normalizeTags,
@@ -147,11 +148,44 @@ test('normalizeLink：url 必填且必须是 http(s)，title 缺省用 url', () 
   assert.deepEqual(custom, { title: '产出', url: 'http://example.com', ref_type: 'doc', ref_id: 'd1' })
 })
 
-test('normalizeSettingsPatch：v0.1 只接受 device，空/超长拒绝', () => {
+test('normalizeSettingsPatch（v0.2）：device/mode/cloud.base/apiKey/clearKey，未知字段丢弃', () => {
   assert.deepEqual(normalizeSettingsPatch({ device: ' dsh-x ' }), { device: 'dsh-x' })
-  assert.deepEqual(normalizeSettingsPatch({ mode: 'cloud', cloud: { apiKey: 'x' } }), {})
+  assert.deepEqual(normalizeSettingsPatch({ mode: 'cloud' }), { mode: 'cloud' })
+  assert.deepEqual(normalizeSettingsPatch({ mode: 'local' }), { mode: 'local' })
+  // base 规范化：http(s)、去尾斜杠、小写主机
+  assert.deepEqual(
+    normalizeSettingsPatch({ cloud: { base: 'https://Example.com/ideas/api/' } }),
+    { cloud: { base: 'https://example.com/ideas/api' } },
+  )
+  // apiKey 去首尾空白后落库；空串表示不改
+  assert.deepEqual(normalizeSettingsPatch({ cloud: { apiKey: '  sk-1234  ' } }), { cloud: { apiKey: 'sk-1234' } })
+  assert.deepEqual(normalizeSettingsPatch({ cloud: { apiKey: '' } }), { cloud: {} })
+  assert.deepEqual(normalizeSettingsPatch({ cloud: { clearKey: true } }), { cloud: { clearKey: true } })
+  // 未知字段静默丢弃
+  assert.deepEqual(
+    normalizeSettingsPatch({ mode: 'cloud', other: 1, cloud: { hasKey: true, base: 'http://x' } }),
+    { mode: 'cloud', cloud: { base: 'http://x' } },
+  )
+  // 非法拒绝
   assert.throws(() => normalizeSettingsPatch({ device: '   ' }), /device 必须是/)
   assert.throws(() => normalizeSettingsPatch({ device: 'x'.repeat(41) }), /device 太长了/)
+  assert.throws(() => normalizeSettingsPatch({ mode: 'sync' }), /mode 不合法/)
+  assert.throws(() => normalizeSettingsPatch({ cloud: { base: 'ftp://x' } }), /cloud.base 必须是 http/)
+  assert.throws(() => normalizeSettingsPatch({ cloud: { base: '不是地址' } }), /cloud.base 必须是 http/)
+  assert.throws(() => normalizeSettingsPatch({ cloud: { apiKey: 1 } }), /cloud.apiKey 必须是字符串/)
+  assert.throws(() => normalizeSettingsPatch({ cloud: { clearKey: 'yes' } }), /cloud.clearKey 必须是布尔值/)
+  assert.throws(() => normalizeSettingsPatch({ cloud: 'x' }), /cloud 必须是 JSON 对象/)
+})
+
+test('normalizeCloudBase：http(s) 去尾斜杠，非法返回 null', () => {
+  assert.equal(normalizeCloudBase('https://www.zhaoningyuan.com/ideas/api/'), 'https://www.zhaoningyuan.com/ideas/api')
+  assert.equal(normalizeCloudBase('  http://127.0.0.1:8080/api///  '), 'http://127.0.0.1:8080/api')
+  assert.equal(normalizeCloudBase(''), null)
+  assert.equal(normalizeCloudBase('   '), null)
+  assert.equal(normalizeCloudBase('ftp://x'), null)
+  assert.equal(normalizeCloudBase('javascript:alert(1)'), null)
+  assert.equal(normalizeCloudBase(42), null)
+  assert.equal(normalizeCloudBase('x'.repeat(600)), null)
 })
 
 test('projectSummary / projectDetail：详情额外带 raw_text/source_note/rev', () => {

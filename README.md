@@ -1,8 +1,8 @@
 # dsh-idea-pool
 
-灵感池的 DeepSeek Harness 侧边栏工作台。**v0.1 只做本机模式**：数据存在 `~/.dsh/idea-pool/`，不依赖云端、不需要账号，DSH 关掉后文件仍在。
+灵感池的 DeepSeek Harness 侧边栏工作台。支持**本机模式**（数据在 `~/.dsh/idea-pool/`，离线可用）和**云端模式**（接 ideas-api，多设备共用，需要 API Key）。
 
-当前状态：P0/P1 已完成（本机模式），P2 云端模式未开始。方案论证：[IDEA-026](https://www.zhaoningyuan.com/ideas/#IDEA-026)；接口契约：[CONTRACT.md](CONTRACT.md)。
+当前状态：P2 云端模式已完成（v0.2.0）。服务端需 ideas-api v2（`rev`/`if_rev`/`client_id`，见 `docs/ideas-api-v2.md`）。方案论证：[IDEA-026](https://www.zhaoningyuan.com/ideas/#IDEA-026)；接口契约：[CONTRACT.md](CONTRACT.md)。
 
 ## 它做什么
 
@@ -31,6 +31,15 @@ dsh plugin --profile desktop add "file:$PWD"
 本机模式：`$DSH_HOME/idea-pool/state.json`（目录 700、文件 600），同目录有 `state.json.bak` 每日备份与 `state.lock`。删除 state.json 等于清空本机灵感池。
 
 云端模式（P2）尚未实现；实现后同一套 UI 增加「云端模式」，走现有 ideas-api。
+
+## 云端模式
+
+1. 设置 → 运行模式 → 云端模式；
+2. 填云端 ideas-api 基址（默认 `https://www.zhaoningyuan.com/ideas/api`）和 API Key（只存本机 `settings.json`，600；不回传浏览器）；
+3. 点「测试连接」确认条数与延迟，再保存；
+4. 之后列表、详情、进展、产出、状态都在云端账本上操作；本机数据保持不变。
+
+云端写入的冲突由服务端 `rev`/`if_rev` 把关：别的端先改过时返回 409，界面提示刷新后重试。云端模式暂不支持撤销（本机模式支持）。
 
 ## 从云端导入（单向迁移）
 
@@ -65,7 +74,7 @@ Host 不 import 任何 `@deepseek-ai/*`，只用 Node 内置模块；Client 只�
 
 ## 已验证
 
-- macOS + DSH 0.2.2-rc.1：安装进 desktop profile 后侧栏与主面板均注册成功，`idea_pool` 工具可用；
+- macOS + DSH 0.2.2-rc.1：安装进 desktop profile 后侧栏与主面板均注册成功，`idea_pool` 工具可用；v0.2 云端模式在隔离 web 版对真实 ideas-api 走通（切模式、测试连接、列表/详情、云端新建/删除、409 冲突映射、从云端导入、切回本机）；
 - 隔离 `DSH_HOME` 的 web 版走查：录入、列表/页签/搜索、详情、加进展、加产出、状态切换、撤销、设置、导出 JSON、中文/英文、明暗、窄屏；
 - `npm test` 75 个用例通过；`client.js` 由 esbuild 构建。
 

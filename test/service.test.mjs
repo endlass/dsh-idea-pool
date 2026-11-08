@@ -318,23 +318,26 @@ test('撤销：没有可撤销操作时 409', async () => {
 
 test('settings：公开设置没有密钥；改 device 同步 state.device', async () => {
   await withService(async ({ root, service }) => {
-    // 直接塞进旧文件里的密钥也不应该出现在公开设置里
+    // 直接塞进设置文件里的密钥也不应该出现在公开设置里（v0.2：hasKey/keyHint 会体现它存在）
     await writeFile(
       join(root, 'settings.json'),
-      JSON.stringify({ device: 'dsh-old', mode: 'cloud', apiKey: 'sk-secret-token', cloud: { base: 'https://x', apiKey: 'sk-secret-token' } }),
+      JSON.stringify({ device: 'dsh-old', mode: 'local', cloud: { base: 'https://x.example/api/', apiKey: 'sk-secret-token' } }),
     )
     const publicBefore = await service.settingsPublic()
     assert.equal(JSON.stringify(publicBefore).includes('sk-secret'), false)
     assert.equal(publicBefore.settings.mode, 'local')
     assert.equal(publicBefore.settings.device, 'dsh-old')
-    assert.deepEqual(publicBefore.settings.cloud, { base: 'https://x', hasKey: false })
+    assert.deepEqual(publicBefore.settings.cloud, { base: 'https://x.example/api', hasKey: true, keyHint: 'oken' })
+    assert.match(publicBefore.settings.storagePath, /state\.json$/)
 
     const updated = await service.updateSettings({ device: 'dsh-new' })
     assert.equal(updated.settings.device, 'dsh-new')
     assert.equal((await service.overview()).device, 'dsh-new')
     const savedText = await readFile(join(root, 'settings.json'), 'utf8')
-    assert.equal(savedText.includes('sk-secret'), false)
     assert.equal(JSON.parse(savedText).mode, 'local')
+    // 内部设置文件可以落盘密钥（600），但公开视图永不包含它
+    assert.equal(JSON.parse(savedText).cloud.apiKey, 'sk-secret-token')
+    assert.equal(JSON.stringify(await service.settingsPublic()).includes('sk-secret'), false)
 
     await assert.rejects(service.updateSettings({ device: '   ' }), (err) => err.status === 400)
   })

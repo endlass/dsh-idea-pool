@@ -17,6 +17,8 @@ let snapshot = {
   mode: 'local',
   device: '',
   storagePath: '',
+  // 云端模式下的 ideas-api 基址（local 模式为 ''）
+  cloudBase: '',
   canUndo: false,
   counts: emptyCounts(),
   total: 0,
@@ -25,6 +27,7 @@ let snapshot = {
   ideas: [],
   listLoading: false,
   selectedNo: null,
+  suppressAutoSelect: false,
   detail: null,
   detailLoading: false,
   detailError: null,
@@ -78,6 +81,10 @@ export function dismissToast() {
 
 export function report(err) {
   toast((err && err.message) || String(err), { error: true })
+  // 云端 rev 冲突（409）：重新拉一遍列表与当前详情，用户能在最新版本上直接重试
+  if (err && Number(err.status) === 409) {
+    Promise.allSettled([fetchState(), fetchList(), refreshSelected()])
+  }
 }
 
 /* ---------- 请求 ---------- */
@@ -93,7 +100,10 @@ async function request(path, init) {
   let data = null
   try { data = await res.json() } catch (err) { data = null }
   if (!res.ok || (data && data.ok === false)) {
-    throw new Error((data && data.error) || t('请求失败（{status}）', { status: res.status }))
+    const error = new Error((data && data.error) || t('请求失败（{status}）', { status: res.status }))
+    // 带上 HTTP 状态：401 / 409 / 502 的分支处理在 report() 里
+    error.status = res.status
+    throw error
   }
   return data || {}
 }
@@ -135,7 +145,9 @@ function applyState(data) {
     total: toCount(data.total),
   }
   if (typeof data.device === 'string') patch.device = data.device
-  if (typeof data.storagePath === 'string') patch.storagePath = data.storagePath
+  // local 模式 storagePath 是字符串、cloudBase 是 null；cloud 模式反过来，按「字段存在」处理
+  if (Object.hasOwn(data, 'storagePath')) patch.storagePath = typeof data.storagePath === 'string' ? data.storagePath : ''
+  if (Object.hasOwn(data, 'cloudBase')) patch.cloudBase = typeof data.cloudBase === 'string' ? data.cloudBase : ''
   set(patch)
 }
 
@@ -239,6 +251,8 @@ export async function refresh({ quiet = false } = {}) {
   try {
     await Promise.all([fetchState(), fetchList()])
     await refreshSelected()
+    // 首屏失败（比如云端没配好）后修好设置再刷新，也要能回到正常界面
+    set({ booted: true, loading: false, error: null })
     if (!quiet) toast(t('已刷新'))
   } catch (err) {
     report(err)
@@ -307,10 +321,15 @@ export async function updateIdea(no, patch, successText) {
 }
 
 export async function deleteIdea(no) {
+  const wasSelected = snapshot.selectedNo === no
   try {
     await request('api/ideas/' + encodeURIComponent(no), { method: 'DELETE' })
-    if (snapshot.selectedNo === no) set({ selectedNo: null, detail: null, detailError: null })
-    await reload()
+    if (wasSelected) set({ selectedNo: null, detail: null, detailError: null, suppressAutoSelect: true })
+    try {
+      await reload()
+    } finally {
+      if (wasSelected) set({ suppressAutoSelect: false })
+    }
     toast(t('已删除 {no}', { no }))
     return true
   } catch (err) {
@@ -359,7 +378,7 @@ export async function undo() {
   }
 }
 
-/* ---------- 设置 / 导出 ---------- */
+/* ---------- 设置 / 云端 / 导出 ---------- */
 
 export async function loadSettings() {
   set({ settingsLoading: true })
@@ -374,16 +393,81 @@ export async function loadSettings() {
   }
 }
 
-export async function saveDevice(device) {
+/**
+ * 保存设置（v0.2 支持 device / mode / cloud{base,apiKey}）。
+ * 切换模式后重新对齐 state + 列表 + 详情；新引擎拉取失败只 toast，不丢面板。
+ * @returns {Promise<object|null>} 保存后的公开设置；失败返回 null。
+ */
+export async function saveSettings(patch) {
   try {
-    const data = await request('api/settings', jsonInit('POST', { device }))
-    set({ settings: data.settings || snapshot.settings })
-    await fetchState()
+    const data = await request('api/settings', jsonInit('POST', patch))
+    const settings = data.settings || null
+    const previousMode = snapshot.mode
+    set({ settings })
+    if (settings && settings.mode && settings.mode !== previousMode) {
+      // 切引擎：先清掉旧引擎的列表/选中，避免旧数据一闪而过
+      set({ ideas: [], selectedNo: null, detail: null, detailError: null, canUndo: false })
+    }
     toast(t('设置已保存'))
-    return true
+    try {
+      await fetchState()
+      await fetchList()
+      await refreshSelected()
+      // 模式从坏配置修好时，boot() 可能曾经失败过：这里直接标记就绪
+      set({ booted: true, loading: false, error: null })
+    } catch (err) {
+      report(err)
+    }
+    return settings
   } catch (err) {
     report(err)
-    return false
+    return null
+  }
+}
+
+/** 兼容 v0.1 的只改设备名。 */
+export async function saveDevice(device) {
+  return Boolean(await saveSettings({ device }))
+}
+
+/**
+ * 测试云端连接（POST /api/cloud/test）。请求里的 base/apiKey 覆盖已存配置，留空则用已存。
+ * 失败只返回结果并 toast，不抛异常，方便设置对话框内联展示。
+ */
+export async function testCloud({ base, apiKey } = {}) {
+  const payload = {}
+  const nextBase = typeof base === 'string' ? base.trim() : ''
+  const nextKey = typeof apiKey === 'string' ? apiKey.trim() : ''
+  if (nextBase) payload.base = nextBase
+  if (nextKey) payload.apiKey = nextKey
+  try {
+    const data = await request('api/cloud/test', jsonInit('POST', payload))
+    return {
+      ok: true,
+      base: typeof data.base === 'string' ? data.base : '',
+      count: toCount(data.count),
+      latencyMs: toCount(data.latencyMs),
+    }
+  } catch (err) {
+    report(err)
+    return { ok: false, error: (err && err.message) || String(err) }
+  }
+}
+
+/** 从云端把全量想法导入本机 store（不切换模式）。 */
+export async function importCloudToLocal() {
+  try {
+    const data = await request('api/cloud/import-local', jsonInit('POST', {}))
+    const imported = toCount(data.imported)
+    const updated = toCount(data.updated)
+    const total = toCount(data.total)
+    if (imported || updated) toast(t('已从云端导入 {imported} 条，更新 {updated} 条', { imported, updated }))
+    else toast(t('云端没有新的想法可导入'))
+    await Promise.allSettled([fetchState(), fetchList(), refreshSelected()])
+    return { imported, updated, total }
+  } catch (err) {
+    report(err)
+    return null
   }
 }
 

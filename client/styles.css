@@ -85,6 +85,7 @@
   white-space: nowrap;
 }
 .ip-mode i { width: 6px; height: 6px; border-radius: 50%; background: var(--ip-success); }
+.ip-mode.is-cloud i { background: var(--ip-business); }
 .ip-topbar-spacer { flex: 1; min-width: 4px; }
 .ip-search { position: relative; display: flex; align-items: center; width: min(320px, 40%); min-width: 120px; }
 .ip-search-icon { position: absolute; left: 10px; color: var(--ip-ink3); pointer-events: none; display: inline-flex; }
@@ -410,6 +411,10 @@
 }
 .ip-inline-input::placeholder { color: var(--ip-ink4); }
 .ip-inline-input:focus { outline: none; border-color: color-mix(in srgb, var(--ip-primary) 55%, var(--ip-line)); background: var(--ip-card); }
+.ip-cloud-status { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; line-height: 18px; color: var(--ip-ink4); overflow-wrap: anywhere; }
+.ip-cloud-status > svg { flex: none; }
+.ip-cloud-status.is-ok { color: var(--ip-success); }
+.ip-cloud-status.is-error { color: var(--ip-error); }
 
 /* ---------- 对话框 ---------- */
 .ip-dialog-mask {

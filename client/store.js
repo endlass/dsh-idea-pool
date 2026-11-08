@@ -27,6 +27,7 @@ let snapshot = {
   ideas: [],
   listLoading: false,
   selectedNo: null,
+  newIdeaNo: null,
   suppressAutoSelect: false,
   detail: null,
   detailLoading: false,
@@ -63,6 +64,7 @@ export function useStore(selector) {
 /* ---------- 提示 ---------- */
 
 let toastTimer = null
+let newIdeaTimer = null
 
 export function toast(text, { error = false, duration = 0 } = {}) {
   clearTimeout(toastTimer)
@@ -301,6 +303,14 @@ export async function addIdea(fields) {
     const idea = data.idea || null
     await reload()
     toast(t('已入池 {no}', { no: idea ? idea.idea_no : '' }).trim())
+    if (idea) {
+      clearTimeout(newIdeaTimer)
+      set({ newIdeaNo: idea.idea_no })
+      newIdeaTimer = setTimeout(() => {
+        newIdeaTimer = null
+        if (snapshot.newIdeaNo === idea.idea_no) set({ newIdeaNo: null })
+      }, 1100)
+    }
     return idea
   } catch (err) {
     report(err)

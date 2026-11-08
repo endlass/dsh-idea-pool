@@ -328,25 +328,26 @@ function StatusTabs() {
 
 /* ---------- 列表 ---------- */
 
-function IdeaCard({ idea, active, onClick }) {
+function IdeaCard({ idea, active, highlight, onClick }) {
   const tags = Array.isArray(idea.tags) ? idea.tags : []
   return (
     <button
       type="button"
-      className={`ip-card ${active ? 'is-on' : ''}`}
+      className={`ip-card ${active ? 'is-on' : ''} ${highlight ? 'is-new' : ''}`}
       aria-current={active ? 'true' : undefined}
       onClick={onClick}
     >
-      <div className="ip-card-head">
-        <StatusBadge status={idea.status}>{statusLabel(idea.status)}</StatusBadge>
-        <span className="ip-card-no">{idea.idea_no}</span>
-        <time className="ip-card-time" dateTime={idea.updated_at || undefined}>{formatShortTime(idea.updated_at)}</time>
-      </div>
       <div className="ip-card-title">{displayTitle(idea)}</div>
       {idea.summary ? <div className="ip-card-sum">{idea.summary}</div> : null}
       <div className="ip-card-foot">
-        {tags.slice(0, 4).map(tag => <Tag key={tag}>{tag}</Tag>)}
-        {tags.length > 4 ? <span className="ip-muted">+{tags.length - 4}</span> : null}
+        <span className={`ip-card-status is-${idea.status}`}>
+          <i aria-hidden="true" />
+          {statusLabel(idea.status)}
+        </span>
+        <span className="ip-card-no">{idea.idea_no}</span>
+        <time className="ip-card-time" dateTime={idea.updated_at || undefined} title={formatDateTime(idea.updated_at)}>{formatShortTime(idea.updated_at)}</time>
+        {tags.slice(0, 2).map(tag => <Tag key={tag}>{tag}</Tag>)}
+        {tags.length > 2 ? <span className="ip-muted">+{tags.length - 2}</span> : null}
         <span className="ip-card-meta">
           {countText(idea.n_updates || 0, '1 条进展', '{n} 条进展')}
           <span className="ip-sep">·</span>
@@ -364,7 +365,12 @@ function ListView({ narrow }) {
   const query = useStore(s => s.query)
   const selectedNo = useStore(s => s.selectedNo)
   const mode = useStore(s => s.mode)
+  const newIdeaNo = useStore(s => s.newIdeaNo)
+  const scrollRef = React.useRef(null)
   const filtered = status !== 'all' || Boolean(query.trim())
+  React.useEffect(() => {
+    if (newIdeaNo) scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [newIdeaNo])
   if (listLoading && !ideas.length) {
     return <Spinner label={t('正在加载…')} />
   }
@@ -378,17 +384,24 @@ function ListView({ narrow }) {
           : mode === 'cloud'
             ? t('在上面写一句，回车换行，⌘/Ctrl+Enter 入池。')
             : t('在上面写一句，回车换行，⌘/Ctrl+Enter 入池。本机模式的数据只在这台机器上。')}
-      />
+      >
+        {filtered ? (
+          <Button size="sm" onClick={() => { setQuery(''); setFilter('all') }}>{t('清空搜索与筛选')}</Button>
+        ) : (
+          <Button size="sm" onClick={() => document.querySelector('.ip-capture-input')?.focus()}>{t('写第一条')}</Button>
+        )}
+      </Empty>
     )
   }
   return (
-    <div className="ip-scroll">
+    <div className="ip-scroll" ref={scrollRef}>
       <div className="ip-list">
         {ideas.map(idea => (
           <IdeaCard
             key={idea.idea_no}
             idea={idea}
             active={!narrow && idea.idea_no === selectedNo}
+            highlight={idea.idea_no === newIdeaNo}
             onClick={() => selectIdea(idea.idea_no)}
           />
         ))}
@@ -611,6 +624,8 @@ function DeleteDialog({ idea, onClose }) {
 
 function DetailPane({ narrow }) {
   const selectedNo = useStore(s => s.selectedNo)
+  const query = useStore(s => s.query)
+  const status = useStore(s => s.status)
   const detail = useStore(s => s.detail)
   const detailLoading = useStore(s => s.detailLoading)
   const detailError = useStore(s => s.detailError)
@@ -629,13 +644,16 @@ function DetailPane({ narrow }) {
   }, [selectedNo])
 
   if (!selectedNo) {
+    const filtered = query.trim() !== '' || status !== 'all'
     return (
       <div className="ip-detail-pane">
         <div className="ip-scroll">
           <Empty
             icon="note"
-            title={t('选一条想法看详情')}
-            hint={t('左边是灵感列表；宽屏时点一张卡片，这里显示原文、进展与产出。')}
+            title={filtered ? t('没有可显示的详情') : t('选一条想法看详情')}
+            hint={filtered
+              ? t('先清空搜索或切换状态，再选一条想法。')
+              : t('左边是灵感列表；宽屏时点一张卡片，这里显示原文、进展与产出。')}
           />
         </div>
       </div>

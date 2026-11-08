@@ -100,20 +100,45 @@ export function Field({ label, hint, children }) {
 export function Dialog({ title, onClose, children, footer, width = 460 }) {
   const ref = React.useRef(null)
   const closeRef = React.useRef(onClose)
+  const previousRef = React.useRef(null)
   closeRef.current = onClose
   React.useEffect(() => {
+    previousRef.current = document.activeElement
+    const focusables = () => {
+      const body = ref.current
+      if (!body) return []
+      return [...body.querySelectorAll('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')]
+        .filter(el => !el.disabled && el.offsetParent !== null)
+    }
     const onKey = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
         closeRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusables()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
     window.addEventListener('keydown', onKey, true)
     const body = ref.current
     const target = body && (body.querySelector('textarea, input, select') || body.querySelector('button'))
     if (target) target.focus()
-    return () => window.removeEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      const previous = previousRef.current
+      if (previous && typeof previous.focus === 'function' && previous.isConnected) previous.focus()
+    }
   }, [])
   return (
     <div

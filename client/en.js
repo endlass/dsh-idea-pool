@@ -182,4 +182,8 @@ export const EN = {
   '已撤销：{label}': 'Undone: {label}',
   '已刷新': 'Refreshed',
   '设置已保存': 'Settings saved',
+  '清空搜索与筛选': 'Clear search and filters',
+  '写第一条': 'Write the first one',
+  '没有可显示的详情': 'No detail to show',
+  '先清空搜索或切换状态，再选一条想法。': 'Clear the search or filters, then pick an idea.',
 }

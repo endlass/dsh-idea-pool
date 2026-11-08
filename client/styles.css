@@ -4,6 +4,8 @@
   --ip-ink2: var(--dsw-alias-label-secondary, #4e5969);
   --ip-ink3: var(--dsw-alias-label-tertiary, #7a828e);
   --ip-ink4: var(--dsw-alias-label-caption, #a9aeb8);
+  /* 必要元信息：比 ink3 深一档，满足 12px 文字的 4.5:1 对比度 */
+  --ip-meta: color-mix(in srgb, var(--ip-ink2) 78%, var(--ip-ink3));
   --ip-invert: var(--dsw-alias-label-primary-inverted, #ffffff);
   --ip-primary: var(--dsw-alias-button-primary-fill, #4c7dff);
   --ip-primary-hover: var(--dsw-alias-button-primary-hover, #3d6ae0);
@@ -184,9 +186,10 @@
 
 /* ---------- 列表卡片 ---------- */
 .ip-card {
+  position: relative;
   width: 100%;
-  display: flex; flex-direction: column; gap: 5px;
-  padding: 11px 12px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 13px 11px;
   border-radius: var(--ip-r-md);
   border: 1px solid var(--ip-line);
   background: var(--ip-card);
@@ -195,16 +198,32 @@
 }
 .ip-card:hover { border-color: var(--ip-line-strong); background: color-mix(in srgb, var(--ip-hover) 45%, var(--ip-card)); }
 .ip-card.is-on {
-  border-color: color-mix(in srgb, var(--ip-primary) 52%, var(--ip-line));
-  background: color-mix(in srgb, var(--ip-primary) 6%, var(--ip-card));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ip-primary) 22%, transparent);
+  border-color: color-mix(in srgb, var(--ip-primary) 20%, var(--ip-line));
+  background: color-mix(in srgb, var(--ip-primary) 5%, var(--ip-card));
+  box-shadow: none;
 }
+.ip-card.is-on::before {
+  content: "";
+  position: absolute; left: -1px; top: 11px; bottom: 11px; width: 3px;
+  border-radius: 3px; background: var(--ip-primary);
+}
+@keyframes ip-card-flash {
+  from { background: color-mix(in srgb, var(--ip-primary) 16%, var(--ip-card)); }
+  to { background: var(--ip-card); }
+}
+.ip-card.is-new { animation: ip-card-flash 1s ease-out; }
 .ip-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ip-card-no { font-family: var(--ip-mono); font-size: 11.5px; letter-spacing: 0.3px; color: var(--ip-ink3); white-space: nowrap; }
-.ip-card-time { margin-left: auto; font-size: 11.5px; color: var(--ip-ink4); white-space: nowrap; }
-.ip-card-title { font-size: 13.5px; font-weight: 600; line-height: 20px; color: var(--ip-ink); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ip-card-no { font-family: var(--ip-mono); font-size: 12px; letter-spacing: 0.3px; color: var(--ip-ink3); white-space: nowrap; }
+.ip-card-time { font-size: 12px; color: var(--ip-meta); white-space: nowrap; }
+.ip-card-title { font-size: 14.5px; font-weight: 650; line-height: 21px; color: var(--ip-ink); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ip-card-sum { font-size: 12.5px; line-height: 18px; color: var(--ip-ink2); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ip-card-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 1px; }
+.ip-card-foot { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 1px; font-size: 12px; color: var(--ip-meta); }
+.ip-card-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--ip-meta); }
+.ip-card-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ip-ink3); flex: none; }
+.ip-card-status.is-active i { background: var(--ip-business); }
+.ip-card-status.is-done i { background: var(--ip-success); }
+.ip-card-status.is-parked i { background: var(--ip-warn); }
+.ip-card-status.is-pool i { background: var(--ip-ink3); }
 .ip-card-meta { margin-left: auto; font-size: 11.5px; color: var(--ip-ink3); display: inline-flex; align-items: center; gap: 4px; }
 .ip-card-meta .ip-sep { color: var(--ip-ink4); }
 .ip-tag {
@@ -232,11 +251,19 @@
   background: var(--ip-hover);
 }
 .ip-badge .ip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
-.ip-badge.is-pool { color: var(--ip-business); background: color-mix(in srgb, var(--ip-business) 12%, transparent); }
-.ip-badge.is-active { color: var(--ip-success); background: color-mix(in srgb, var(--ip-success) 12%, transparent); }
-.ip-badge.is-done { color: var(--ip-ink3); background: var(--ip-hover); }
-.ip-badge.is-parked { color: var(--ip-warn); background: color-mix(in srgb, var(--ip-warn) 13%, transparent); }
-.ip-badge.is-neutral { color: var(--ip-ink3); background: var(--ip-hover); }
+/* 彩点承担状态语义，文字保持中性色以通过对比度 */
+.ip-badge { color: var(--ip-ink2); background: var(--ip-hover); }
+.ip-badge .ip-dot { background: var(--ip-ink3); }
+.ip-badge.is-pool { background: color-mix(in srgb, var(--ip-ink3) 10%, transparent); }
+.ip-badge.is-pool .ip-dot { background: var(--ip-ink3); }
+.ip-badge.is-active { background: color-mix(in srgb, var(--ip-business) 10%, transparent); }
+.ip-badge.is-active .ip-dot { background: var(--ip-business); }
+.ip-badge.is-done { background: color-mix(in srgb, var(--ip-success) 10%, transparent); }
+.ip-badge.is-done .ip-dot { background: var(--ip-success); }
+.ip-badge.is-parked { background: color-mix(in srgb, var(--ip-warn) 10%, transparent); }
+.ip-badge.is-parked .ip-dot { background: var(--ip-warn); }
+.ip-badge.is-neutral { color: var(--ip-ink2); background: var(--ip-hover); }
+.ip-badge.is-neutral .ip-dot { background: var(--ip-ink3); }
 
 /* ---------- 详情 ---------- */
 .ip-detail { display: flex; flex-direction: column; }
@@ -244,7 +271,7 @@
 .ip-detail-back { display: none; }
 .ip-detail-title-row { display: flex; align-items: flex-start; gap: 10px; }
 .ip-detail-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 650; line-height: 26px; overflow-wrap: anywhere; }
-.ip-detail-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ip-ink3); }
+.ip-detail-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ip-meta); }
 .ip-detail-meta .ip-card-no { font-size: 12px; }
 .ip-detail-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ip-detail-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
@@ -260,12 +287,12 @@
 }
 .ip-status-switch button:hover { color: var(--ip-ink); background: color-mix(in srgb, var(--ip-card) 60%, transparent); }
 .ip-status-switch button.is-on { background: var(--ip-card); color: var(--ip-ink); font-weight: 600; box-shadow: var(--ip-shadow); }
-.ip-detail-body { padding: 0 18px 24px; }
-.ip-section { padding: 13px 0 4px; border-top: 1px solid var(--ip-line); }
+.ip-detail-body { width: 100%; max-width: 760px; margin: 0 auto; padding: 0 18px 28px; }
+.ip-section { padding: 16px 0 6px; border-top: 1px solid var(--ip-line); }
 .ip-section:first-child { border-top: 0; }
 .ip-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-height: 26px; }
-.ip-section-title { font-size: 12.5px; font-weight: 650; color: var(--ip-ink2); letter-spacing: 0.2px; }
-.ip-section-count { font-size: 11.5px; color: var(--ip-ink4); font-variant-numeric: tabular-nums; }
+.ip-section-title { font-size: 12px; font-weight: 650; color: var(--ip-ink2); letter-spacing: 0.04em; }
+.ip-section-count { font-size: 12px; color: var(--ip-meta); font-variant-numeric: tabular-nums; }
 .ip-section-head .ip-spacer { flex: 1; }
 .ip-raw {
   margin: 0;
@@ -280,8 +307,8 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.ip-summary { font-size: 13.5px; line-height: 22px; color: var(--ip-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.ip-text { font-size: 13.5px; line-height: 22px; color: var(--ip-ink2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ip-summary { font-size: 14px; line-height: 23px; color: var(--ip-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ip-text { font-size: 14px; line-height: 23px; color: var(--ip-ink2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ip-muted { font-size: 12.5px; color: var(--ip-ink4); }
 
 /* 进展时间线 */
@@ -296,7 +323,7 @@
   background: var(--ip-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ip-primary) 14%, transparent);
 }
-.ip-tl-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; font-size: 11.5px; color: var(--ip-ink3); }
+.ip-tl-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; font-size: 12px; color: var(--ip-meta); }
 .ip-tl-time { font-variant-numeric: tabular-nums; }
 .ip-src {
   display: inline-flex; align-items: center; gap: 3px;
@@ -513,4 +540,15 @@
   .ip-root *,
   .ip-root *::before,
   .ip-root *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+
+/* 动效降级：宿主/系统开启「减少动态效果」时不做位移动画 */
+@media (prefers-reduced-motion: reduce) {
+  .ip-root *, .ip-root *::before, .ip-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

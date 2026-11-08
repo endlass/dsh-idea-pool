@@ -217,4 +217,9 @@ export const EN = {
   '最新进展': 'Latest update',
   '进展历史': 'Update history',
   '逐字保存': 'Verbatim',
+  '状态': 'Status',
+  '排序': 'Sort',
+  '最近创建': 'Recently created',
+  '最近更新': 'Recently updated',
+  '下一步': 'Next step',
 }

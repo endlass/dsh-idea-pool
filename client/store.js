@@ -24,6 +24,7 @@ let snapshot = {
   total: 0,
   status: 'all',
   query: '',
+  sortBy: 'created',
   ideas: [],
   listLoading: false,
   selectedNo: null,
@@ -264,6 +265,10 @@ export async function refresh({ quiet = false } = {}) {
 /* ---------- 筛选 / 选中 ---------- */
 
 let queryTimer = null
+
+export function setSortBy(sortBy) {
+  set({ sortBy: sortBy === 'updated' ? 'updated' : 'created' })
+}
 
 export function setFilter(status) {
   if (snapshot.status === status) return

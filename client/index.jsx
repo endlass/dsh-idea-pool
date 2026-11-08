@@ -20,6 +20,7 @@ import {
   selectIdea,
   setFilter,
   setQuery,
+  setSortBy,
   testCloud,
   toast,
   undo,
@@ -313,6 +314,20 @@ function StatusTabs() {
   const status = useStore(s => s.status)
   const counts = useStore(s => s.counts)
   const total = useStore(s => s.total)
+  const sortBy = useStore(s => s.sortBy)
+  const [sortOpen, setSortOpen] = React.useState(false)
+  const sortRef = React.useRef(null)
+  React.useEffect(() => {
+    if (!sortOpen) return undefined
+    const onDown = (event) => { if (!sortRef.current || !sortRef.current.contains(event.target)) setSortOpen(false) }
+    const onKey = (event) => { if (event.key === 'Escape') setSortOpen(false) }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [sortOpen])
   return (
     <nav className="ip-tabs" aria-label={t('状态筛选')}>
       {TABS.map(tab => {
@@ -330,6 +345,39 @@ function StatusTabs() {
           </button>
         )
       })}
+      <div className="ip-sort" ref={sortRef}>
+        <button
+          type="button"
+          className="ip-sort-trigger"
+          aria-haspopup="menu"
+          aria-expanded={sortOpen}
+          onClick={() => setSortOpen(value => !value)}
+        >
+          <span>{t('排序')}</span>
+          <strong>{sortBy === 'updated' ? t('最近更新') : t('最近创建')}</strong>
+          <Icon name="chevD" size={12} />
+        </button>
+        {sortOpen ? (
+          <div className="ip-sort-pop" role="menu" aria-label={t('排序')}>
+            {[
+              { key: 'created', label: t('最近创建') },
+              { key: 'updated', label: t('最近更新') },
+            ].map(option => (
+              <button
+                key={option.key}
+                type="button"
+                role="menuitemradio"
+                aria-checked={sortBy === option.key}
+                className={sortBy === option.key ? 'is-on' : ''}
+                onClick={() => { setSortBy(option.key); setSortOpen(false) }}
+              >
+                <span>{option.label}</span>
+                {sortBy === option.key ? <Icon name="check" size={13} /> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </nav>
   )
 }
@@ -375,9 +423,19 @@ function ListView({ narrow }) {
   const query = useStore(s => s.query)
   const selectedNo = useStore(s => s.selectedNo)
   const mode = useStore(s => s.mode)
+  const sortBy = useStore(s => s.sortBy)
   const newIdeaNo = useStore(s => s.newIdeaNo)
   const scrollRef = React.useRef(null)
   const filtered = status !== 'all' || Boolean(query.trim())
+  const sortedIdeas = React.useMemo(() => {
+    const key = sortBy === 'updated' ? 'updated_at' : 'created_at'
+    return [...ideas].sort((left, right) => {
+      const a = typeof left[key] === 'string' ? left[key] : ''
+      const b = typeof right[key] === 'string' ? right[key] : ''
+      if (a !== b) return a < b ? 1 : -1
+      return String(left.idea_no) < String(right.idea_no) ? 1 : -1
+    })
+  }, [ideas, sortBy])
   React.useEffect(() => {
     if (newIdeaNo) scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [newIdeaNo])
@@ -408,7 +466,7 @@ function ListView({ narrow }) {
   return (
     <div className="ip-scroll" ref={scrollRef}>
       <div className="ip-list">
-        {ideas.map(idea => (
+        {sortedIdeas.map(idea => (
           <IdeaCard
             key={idea.idea_no}
             idea={idea}
@@ -639,6 +697,12 @@ function DeleteDialog({ idea, onClose }) {
   )
 }
 
+/** 从最新进展里提取明确写出的「下一步」，不猜测、不编造。 */
+function nextStepOf(content) {
+  const match = String(content || '').match(/(?:^|\n)\s*(?:下一步|next step)[：:]\s*([^\n]+)/i)
+  return match ? match[1].trim() : ''
+}
+
 /* ---------- 详情主面板 ---------- */
 
 function DetailPane({ narrow }) {
@@ -658,6 +722,8 @@ function DetailPane({ narrow }) {
   const [busyStatus, setBusyStatus] = React.useState(false)
   const [rawOpen, setRawOpen] = React.useState(false)
   const [latestOpen, setLatestOpen] = React.useState(false)
+  const [statusMenuOpen, setStatusMenuOpen] = React.useState(false)
+  const statusMenuRef = React.useRef(null)
 
   React.useEffect(() => {
     setEditing(false)
@@ -666,7 +732,22 @@ function DetailPane({ narrow }) {
     setAddingLink(false)
     setRawOpen(false)
     setLatestOpen(false)
+    setStatusMenuOpen(false)
   }, [selectedNo])
+
+  React.useEffect(() => {
+    if (!statusMenuOpen) return undefined
+    const onDown = (event) => {
+      if (!statusMenuRef.current || !statusMenuRef.current.contains(event.target)) setStatusMenuOpen(false)
+    }
+    const onKey = (event) => { if (event.key === 'Escape') setStatusMenuOpen(false) }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [statusMenuOpen])
 
   if (!selectedNo) {
     const filtered = query.trim() !== '' || status !== 'all'
@@ -783,19 +864,39 @@ function DetailPane({ narrow }) {
               <Button size="sm" icon="copy" onClick={copyExpand} title={t('复制后粘贴给 agent，继续展开或接力')}>{promptLabel}</Button>
               <Button size="sm" icon="link" onClick={copyIdeaLink}>{t(isCloud ? '复制链接' : '复制引用')}</Button>
               <span className="ip-spacer" />
-              <div className="ip-status-switch" role="group" aria-label={t('切换状态')}>
-                {STATUS_ORDER.map(status => (
-                  <button
-                    key={status}
-                    type="button"
-                    className={idea.status === status ? 'is-on' : ''}
-                    aria-pressed={idea.status === status}
-                    disabled={busyStatus}
-                    onClick={() => changeStatus(status)}
-                  >
-                    {statusLabel(status)}
-                  </button>
-                ))}
+              <div className="ip-status-menu" ref={statusMenuRef}>
+                <button
+                  type="button"
+                  className="ip-status-trigger"
+                  aria-haspopup="menu"
+                  aria-expanded={statusMenuOpen}
+                  disabled={busyStatus}
+                  onClick={() => setStatusMenuOpen(value => !value)}
+                >
+                  <span className="ip-status-label">{t('状态')}</span>
+                  <i className={`ip-dot is-${idea.status}`} aria-hidden="true" />
+                  <span>{statusLabel(idea.status)}</span>
+                  <Icon name="chevD" size={12} />
+                </button>
+                {statusMenuOpen ? (
+                  <div className="ip-status-pop" role="menu" aria-label={t('切换状态')}>
+                    {STATUS_ORDER.map(status => (
+                      <button
+                        key={status}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={idea.status === status}
+                        className={idea.status === status ? 'is-on' : ''}
+                        disabled={busyStatus}
+                        onClick={() => { setStatusMenuOpen(false); changeStatus(status) }}
+                      >
+                        <i className={`ip-dot is-${status}`} aria-hidden="true" />
+                        <span>{statusLabel(status)}</span>
+                        {idea.status === status ? <Icon name="check" size={13} /> : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -822,6 +923,9 @@ function DetailPane({ narrow }) {
                   {latest.source ? <span className="ip-src"><Icon name="monitor" size={11} />{sourceLabel(latest.source)}</span> : null}
                 </div>
                 <div className="ip-latest">
+                  {nextStepOf(latest.content) ? (
+                    <div className="ip-next-step"><span className="ip-next-step-label">{t('下一步')}</span><span>{nextStepOf(latest.content)}</span></div>
+                  ) : null}
                   <div className={`ip-latest-content ${latest.content && latest.content.length > 300 && !latestOpen ? 'is-clamped' : ''}`}>{latest.content}</div>
                   <div className="ip-latest-foot">
                     <span className="ip-muted">{t('下一步从这里接着推进')}</span>

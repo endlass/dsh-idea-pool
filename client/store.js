@@ -319,12 +319,36 @@ export async function addIdea(fields) {
 }
 
 export async function updateIdea(no, patch, successText) {
+  // 乐观更新：状态切换先在本地生效，失败再回滚（云端模式下感知延迟最明显）
+  const before = { ideas: snapshot.ideas, detail: snapshot.detail, counts: snapshot.counts }
+  const prevStatus = patch.status && snapshot.ideas.find(idea => idea.idea_no === no)?.status
+  if (patch.status && prevStatus && prevStatus !== patch.status) {
+    const counts = { ...snapshot.counts }
+    counts[prevStatus] = Math.max(0, (counts[prevStatus] || 0) - 1)
+    counts[patch.status] = (counts[patch.status] || 0) + 1
+    set({
+      counts,
+      ideas: snapshot.ideas.map(idea => (idea.idea_no === no ? { ...idea, status: patch.status } : idea)),
+      detail: snapshot.detail && snapshot.detail.idea && snapshot.detail.idea.idea_no === no
+        ? { ...snapshot.detail, idea: { ...snapshot.detail.idea, status: patch.status } }
+        : snapshot.detail,
+    })
+  }
   try {
     const data = await request('api/ideas/' + encodeURIComponent(no), jsonInit('PATCH', patch))
-    await reload({ withDetail: true })
+    const idea = data.idea || null
+    if (idea) {
+      set({
+        ideas: snapshot.ideas.map(item => (item.idea_no === no ? { ...item, ...idea } : item)),
+        detail: snapshot.detail && snapshot.detail.idea && snapshot.detail.idea.idea_no === no
+          ? { ...snapshot.detail, idea: { ...snapshot.detail.idea, ...idea } }
+          : snapshot.detail,
+      })
+    }
     if (successText) toast(successText)
-    return data.idea || null
+    return idea
   } catch (err) {
+    set(before)
     report(err)
     return null
   }
@@ -349,26 +373,64 @@ export async function deleteIdea(no) {
 }
 
 export async function addUpdate(no, content) {
+  const temp = {
+    id: 'tmp-' + Date.now(),
+    content,
+    source: snapshot.device || '',
+    created_at: new Date().toISOString(),
+  }
+  const beforeDetail = snapshot.detail
+  const beforeIdeas = snapshot.ideas
+  const detailMatches = snapshot.detail && snapshot.detail.idea && snapshot.detail.idea.idea_no === no
+  if (detailMatches) set({ detail: { ...snapshot.detail, updates: [...(snapshot.detail.updates || []), temp] } })
   try {
     const payload = { content }
     if (snapshot.device) payload.source = snapshot.device
-    await request('api/ideas/' + encodeURIComponent(no) + '/updates', jsonInit('POST', payload))
-    await reload({ withDetail: true })
+    const data = await request('api/ideas/' + encodeURIComponent(no) + '/updates', jsonInit('POST', payload))
+    if (detailMatches) {
+      const saved = data.update || null
+      set({
+        detail: {
+          ...snapshot.detail,
+          updates: [
+            ...(snapshot.detail.updates || []).filter(item => item.id !== temp.id),
+            ...(saved ? [saved] : []),
+          ],
+        },
+        ideas: snapshot.ideas.map(idea => (idea.idea_no === no ? { ...idea, n_updates: (idea.n_updates || 0) + 1 } : idea)),
+      })
+    }
     toast(t('已记录进展'))
     return true
   } catch (err) {
+    if (detailMatches) set({ detail: beforeDetail, ideas: beforeIdeas })
     report(err)
     return false
   }
 }
 
 export async function addLink(no, { title, url }) {
+  const temp = { id: 'tmp-' + Date.now(), title, url, created_at: new Date().toISOString() }
+  const beforeDetail = snapshot.detail
+  const beforeIdeas = snapshot.ideas
+  const detailMatches = snapshot.detail && snapshot.detail.idea && snapshot.detail.idea.idea_no === no
+  if (detailMatches) set({ detail: { ...snapshot.detail, links: [...(snapshot.detail.links || []), temp] } })
   try {
-    await request('api/ideas/' + encodeURIComponent(no) + '/links', jsonInit('POST', { title, url }))
-    await reload({ withDetail: true })
+    const data = await request('api/ideas/' + encodeURIComponent(no) + '/links', jsonInit('POST', { title, url }))
+    if (detailMatches) {
+      const saved = data.link || null
+      set({
+        detail: {
+          ...snapshot.detail,
+          links: [...(snapshot.detail.links || []).filter(item => item.id !== temp.id), ...(saved ? [saved] : [])],
+        },
+        ideas: snapshot.ideas.map(idea => (idea.idea_no === no ? { ...idea, n_links: (idea.n_links || 0) + 1 } : idea)),
+      })
+    }
     toast(t('已添加产出'))
     return true
   } catch (err) {
+    if (detailMatches) set({ detail: beforeDetail, ideas: beforeIdeas })
     report(err)
     return false
   }

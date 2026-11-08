@@ -552,3 +552,48 @@
     scroll-behavior: auto !important;
   }
 }
+
+.ip-latest {
+  border: 1px solid color-mix(in srgb, var(--ip-business) 16%, var(--ip-line));
+  background: color-mix(in srgb, var(--ip-business) 4%, var(--ip-card));
+  border-radius: var(--ip-r-md);
+  padding: 12px 14px;
+}
+.ip-latest-content { font-size: 14px; line-height: 23px; color: var(--ip-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ip-latest-content.is-clamped { display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+.ip-latest-foot { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--ip-line); }
+.ip-raw-fold {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--ip-line-strong, var(--ip-line));
+  border-radius: var(--ip-r-sm);
+  background: var(--ip-hover);
+  color: var(--ip-ink2); font-size: 12px; text-align: left; cursor: pointer;
+}
+.ip-raw-fold:hover { border-color: color-mix(in srgb, var(--ip-business) 35%, var(--ip-line)); color: var(--ip-ink); }
+
+.ip-settings-group {
+  border: 1px solid var(--ip-line);
+  border-radius: var(--ip-r-md);
+  padding: 0 12px 6px;
+  margin: 10px 0;
+  background: var(--ip-card);
+}
+.ip-settings-head {
+  padding: 10px 0 7px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--ip-line);
+}
+.ip-settings-head h3 { margin: 0 0 2px; font-size: 13px; font-weight: 650; color: var(--ip-ink); }
+.ip-settings-head p { margin: 0; font-size: 12px; line-height: 18px; color: var(--ip-ink3); }
+.ip-settings-group .ip-dialog-row { padding-top: 9px; padding-bottom: 7px; }
+
+/* 空闲录入条收成单行入口；聚焦/有内容再展开 */
+.ip-capture.is-collapsed { padding: 6px 10px; }
+.ip-capture.is-collapsed .ip-capture-input { height: 22px !important; min-height: 22px; padding: 0; }
+.ip-capture.is-collapsed .ip-capture-toggle,
+.ip-capture.is-collapsed .ip-cmdhint { display: none; }
+.ip-capture.is-collapsed .ip-capture-side { align-items: center; }
+/* 窄屏阅读详情时收起搜索，把高度留给正文 */
+.ip-root.is-narrow.is-reading .ip-search { display: none; }

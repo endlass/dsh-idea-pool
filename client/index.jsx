@@ -253,9 +253,10 @@ function CaptureBar({ highlight }) {
     }
   }
 
+  const collapsed = !focused && !expanded && !raw && !title && !summary && !tags
   return (
     <section
-      className={`ip-capture ${focused ? 'is-focused' : ''} ${highlight ? 'is-highlight' : ''}`}
+      className={`ip-capture ${collapsed ? 'is-collapsed' : ''} ${focused ? 'is-focused' : ''} ${highlight ? 'is-highlight' : ''}`}
       aria-label={t('录入灵感')}
     >
       <div className="ip-capture-main">
@@ -655,12 +656,16 @@ function DetailPane({ narrow }) {
   const [addingUpdate, setAddingUpdate] = React.useState(false)
   const [addingLink, setAddingLink] = React.useState(false)
   const [busyStatus, setBusyStatus] = React.useState(false)
+  const [rawOpen, setRawOpen] = React.useState(false)
+  const [latestOpen, setLatestOpen] = React.useState(false)
 
   React.useEffect(() => {
     setEditing(false)
     setDeleting(false)
     setAddingUpdate(false)
     setAddingLink(false)
+    setRawOpen(false)
+    setLatestOpen(false)
   }, [selectedNo])
 
   if (!selectedNo) {
@@ -717,7 +722,27 @@ function DetailPane({ narrow }) {
     setBusyStatus(false)
   }
 
-  const copyExpand = () => copyText(expandInstruction(idea), t('已复制展开指令'))
+  const latest = updates.length ? updates[updates.length - 1] : null
+  const history = updates.slice(0, -1).reverse()
+  const hasContext = Boolean(idea.summary) || Boolean(idea.source_note) || updates.length > 0
+  const rawSection = (
+    <section className="ip-section">
+      <div className="ip-section-head">
+        <span className="ip-section-title">{t('原文')}</span>
+        <span className="ip-section-count">{t('阅读模式 · 逐字保存')}</span>
+        <span className="ip-spacer" />
+        <IconButton icon="copy" size={13} label={t('复制原文')} onClick={() => copyText(idea.raw_text || '', t('已复制原文'))} />
+        {hasContext ? (
+          <Button size="sm" variant="ghost" onClick={() => setRawOpen(value => !value)}>{rawOpen ? t('收起原文') : t('展开原文')}</Button>
+        ) : null}
+      </div>
+      {(hasContext && !rawOpen)
+        ? <button type="button" className="ip-raw-fold" onClick={() => setRawOpen(true)}><span>{t('原文默认折叠，点击展开')}</span><span className="ip-muted">{t('逐字保存')}</span></button>
+        : <pre className="ip-raw">{idea.raw_text || t('（无原文）')}</pre>}
+    </section>
+  )
+  const promptLabel = (idea.status === 'pool' && updates.length === 0) ? t('复制展开提示词') : t('复制接力提示词')
+  const copyExpand = () => copyText(expandInstruction(idea), t('已复制提示词，可粘贴到对话继续'))
   const isCloud = mode === 'cloud'
   // 本机模式复制一段「本机引用」；云端模式复制与网站一致的规范链接
   const copyIdeaLink = () => {
@@ -754,7 +779,8 @@ function DetailPane({ narrow }) {
               <div className="ip-detail-tags">{idea.tags.map(tag => <Tag key={tag}>{tag}</Tag>)}</div>
             ) : null}
             <div className="ip-detail-actions">
-              <Button size="sm" icon="copy" onClick={copyExpand}>{t('复制展开指令')}</Button>
+              <Button size="sm" variant="primary" icon="plus" onClick={() => { setAddingUpdate(true); window.requestAnimationFrame(() => document.querySelector('.ip-abox')?.scrollIntoView({ block: 'center' })) }}>{t('记进展')}</Button>
+              <Button size="sm" icon="copy" onClick={copyExpand} title={t('复制后粘贴给 agent，继续展开或接力')}>{promptLabel}</Button>
               <Button size="sm" icon="link" onClick={copyIdeaLink}>{t(isCloud ? '复制链接' : '复制引用')}</Button>
               <span className="ip-spacer" />
               <div className="ip-status-switch" role="group" aria-label={t('切换状态')}>
@@ -774,15 +800,7 @@ function DetailPane({ narrow }) {
             </div>
           </div>
           <div className="ip-detail-body">
-            <section className="ip-section">
-              <div className="ip-section-head">
-                <span className="ip-section-title">{t('原文')}</span>
-                <span className="ip-section-count">{t('阅读模式 · 逐字保存')}</span>
-                <span className="ip-spacer" />
-                <IconButton icon="copy" size={13} label={t('复制原文')} onClick={() => copyText(idea.raw_text || '', t('已复制原文'))} />
-              </div>
-              <pre className="ip-raw">{idea.raw_text || t('（无原文）')}</pre>
-            </section>
+            {!hasContext ? rawSection : null}
             {idea.summary ? (
               <section className="ip-section">
                 <div className="ip-section-head"><span className="ip-section-title">{t('摘要')}</span></div>
@@ -795,6 +813,27 @@ function DetailPane({ narrow }) {
                 <div className="ip-text">{idea.source_note}</div>
               </section>
             ) : null}
+            {latest ? (
+              <section className="ip-section">
+                <div className="ip-section-head">
+                  <span className="ip-section-title">{t('最新进展')}</span>
+                  <span className="ip-section-count">{formatDateTime(latest.created_at)}</span>
+                  <span className="ip-spacer" />
+                  {latest.source ? <span className="ip-src"><Icon name="monitor" size={11} />{sourceLabel(latest.source)}</span> : null}
+                </div>
+                <div className="ip-latest">
+                  <div className={`ip-latest-content ${latest.content && latest.content.length > 300 && !latestOpen ? 'is-clamped' : ''}`}>{latest.content}</div>
+                  <div className="ip-latest-foot">
+                    <span className="ip-muted">{t('下一步从这里接着推进')}</span>
+                    <span className="ip-spacer" />
+                    {latest.content && latest.content.length > 300 ? (
+                      <Button size="sm" variant="ghost" onClick={() => setLatestOpen(value => !value)}>{latestOpen ? t('收起') : t('展开全部')}</Button>
+                    ) : null}
+                    <Button size="sm" variant="ghost" icon="plus" onClick={() => setAddingUpdate(true)}>{t('记进展')}</Button>
+                  </div>
+                </div>
+              </section>
+            ) : null}
             <section className="ip-section">
               <div className="ip-section-head">
                 <span className="ip-section-title">{t('关联产出')}</span>
@@ -805,20 +844,8 @@ function DetailPane({ narrow }) {
               {links.length
                 ? <ul className="ip-links">{links.map(link => <LinkRow key={link.id || link.url} link={link} />)}</ul>
                 : <p className="ip-muted">{t('还没有关联产出 —— 推进后把成果链接挂在这里。')}</p>}
-              {addingLink ? <AddLinkForm no={no} /> : null}
             </section>
-            <section className="ip-section">
-              <div className="ip-section-head">
-                <span className="ip-section-title">{t('进展')}</span>
-                <span className="ip-section-count">{updates.length}</span>
-                <span className="ip-spacer" />
-                <Button size="sm" variant="ghost" icon="plus" onClick={() => setAddingUpdate(value => !value)}>{t('加进展')}</Button>
-              </div>
-              {updates.length
-                ? <ul className="ip-timeline">{updates.map(update => <TimelineItem key={update.id || update.created_at} update={update} />)}</ul>
-                : <p className="ip-muted">{t('还没有进展记录。')}</p>}
-              {addingUpdate ? <AddUpdateForm no={no} /> : null}
-            </section>
+            {hasContext ? rawSection : null}
           </div>
         </div>
       </div>
@@ -866,6 +893,7 @@ function SettingsDialog({ onClose }) {
   const keyHint = typeof savedCloud.keyHint === 'string' ? savedCloud.keyHint : ''
   const savedBase = typeof savedCloud.base === 'string' ? savedCloud.base : ''
   const shownBase = normalizeBaseUrl(baseDraft) || savedBase || DEFAULT_CLOUD_BASE
+  const cloudDirty = normalizeBaseUrl(baseDraft) !== normalizeBaseUrl(savedBase || DEFAULT_CLOUD_BASE) || keyDraft.trim() !== ''
   const localPath = (settings && typeof settings.storagePath === 'string' && settings.storagePath) || storagePath
 
   const switchMode = (next) => {
@@ -978,22 +1006,27 @@ function SettingsDialog({ onClose }) {
       )}
     >
       <div className="ip-dialog-rows">
-        <div className="ip-dialog-row">
-          <span className="ip-dialog-row-label">{t('运行模式')}</span>
-          <div className="ip-dialog-row-main">
-            <div className="ip-status-switch" role="group" aria-label={t('运行模式')}>
-              <button type="button" className={modeDraft === 'local' ? 'is-on' : ''} aria-pressed={modeDraft === 'local'} onClick={() => switchMode('local')}>{t('本机模式')}</button>
-              <button type="button" className={modeDraft === 'cloud' ? 'is-on' : ''} aria-pressed={modeDraft === 'cloud'} onClick={() => switchMode('cloud')}>{t('云端模式')}</button>
-            </div>
-            <p className="ip-dialog-note">
-              {modeDraft === 'cloud'
-                ? t('云端模式：数据在云端 {base}，本机数据不动。', { base: shownBase })
-                : t('本机模式：数据只存在这台机器的 DSH_HOME/idea-pool/ 下，由插件直接读写，不经过网络；换机器看不到。')}
-            </p>
+        {/* 数据位置 */}
+        <section className="ip-settings-group">
+          <div className="ip-settings-head">
+            <h3>{t('数据位置')}</h3>
+            <p>{t('先选数据存在哪里；切换模式不会自动搬数据。')}</p>
           </div>
-        </div>
-        {modeDraft === 'local' ? (
-          <>
+          <div className="ip-dialog-row">
+            <span className="ip-dialog-row-label">{t('运行模式')}</span>
+            <div className="ip-dialog-row-main">
+              <div className="ip-status-switch" role="group" aria-label={t('运行模式')}>
+                <button type="button" className={modeDraft === 'local' ? 'is-on' : ''} aria-pressed={modeDraft === 'local'} onClick={() => switchMode('local')}>{t('本机模式')}</button>
+                <button type="button" className={modeDraft === 'cloud' ? 'is-on' : ''} aria-pressed={modeDraft === 'cloud'} onClick={() => switchMode('cloud')}>{t('云端模式')}</button>
+              </div>
+              <p className="ip-dialog-note">
+                {modeDraft === 'cloud'
+                  ? t('云端模式：数据在云端 {base}，本机数据不动。', { base: shownBase })
+                  : t('本机模式：数据只存在这台机器的 DSH_HOME/idea-pool/ 下，由插件直接读写，不经过网络；换机器看不到。')}
+              </p>
+            </div>
+          </div>
+          {modeDraft === 'local' ? (
             <div className="ip-dialog-row">
               <span className="ip-dialog-row-label">{t('存储路径')}</span>
               <div className="ip-dialog-row-main">
@@ -1001,20 +1034,85 @@ function SettingsDialog({ onClose }) {
                 <p className="ip-dialog-note">{t('本机模式下所有想法都存在这个 JSON 文件里，删掉文件等于清空灵感池。')}</p>
               </div>
             </div>
-            <div className="ip-dialog-row">
-              <span className="ip-dialog-row-label">{t('设备标识')}</span>
-              <div className="ip-dialog-row-main">
-                <div className="ip-inline-row">
-                  <input
-                    className="ip-inline-input"
-                    value={deviceDraft}
-                    placeholder="dsh-mac / dsh-win / volcano"
-                    onChange={(event) => setDeviceDraft(event.target.value)}
-                  />
+          ) : null}
+        </section>
+
+        {/* 连接配置 */}
+        <section className="ip-settings-group">
+          <div className="ip-settings-head">
+            <h3>{t('连接配置')}</h3>
+            <p>{modeDraft === 'cloud' ? t('云端地址与 API Key；测试使用当前填写的值。') : t('本机模式不需要连接；切到云端模式后再填写地址与 Key。')}</p>
+          </div>
+          {modeDraft === 'cloud' ? (
+            <>
+              <div className="ip-dialog-row">
+                <span className="ip-dialog-row-label">{t('云端地址')}</span>
+                <div className="ip-dialog-row-main">
+                  <div className="ip-inline-row">
+                    <input
+                      className="ip-inline-input"
+                      value={baseDraft}
+                      placeholder={DEFAULT_CLOUD_BASE}
+                      onChange={(event) => { setBaseDraft(event.target.value); setTestResult(null) }}
+                    />
+                  </div>
+                  <p className="ip-dialog-note">{t('云端 ideas-api 基址，默认 {base}。', { base: DEFAULT_CLOUD_BASE })}</p>
                 </div>
-                <p className="ip-dialog-note">{t('写进想法与进展的 source 字段，跨机接力时用它定位来源。')}</p>
               </div>
-            </div>
+              <div className="ip-dialog-row">
+                <span className="ip-dialog-row-label">{t('API Key')}</span>
+                <div className="ip-dialog-row-main">
+                  <div className="ip-inline-row">
+                    <input
+                      className="ip-inline-input"
+                      type="password"
+                      autoComplete="off"
+                      value={keyDraft}
+                      placeholder={hasKey ? t('已保存，末四位 {hint}', { hint: keyHint || '****' }) : t('粘贴云端 API Key')}
+                      onChange={(event) => { setKeyDraft(event.target.value); setTestResult(null) }}
+                    />
+                    {hasKey ? (
+                      <Button size="sm" variant="danger" onClick={clearKey} disabled={clearing || busy}>
+                        {clearing ? t('清除中…') : t('清除已保存的 Key')}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="ip-dialog-note">
+                    {hasKey
+                      ? t('已保存 API Key（末四位 {hint}）；留空表示不改。', { hint: keyHint || '****' })
+                      : t('还没配置 API Key；云端读写需要它。')}
+                  </p>
+                </div>
+              </div>
+              <div className="ip-dialog-row">
+                <span className="ip-dialog-row-label">{t('测试连接')}</span>
+                <div className="ip-dialog-row-main">
+                  <div className="ip-inline-row">
+                    <Button size="sm" icon="bolt" onClick={runTest} disabled={testing}>{testing ? t('测试中…') : t('测试连接')}</Button>
+                    {testResult ? (
+                      <span className={`ip-cloud-status ${testResult.ok ? 'is-ok' : 'is-error'}`}>
+                        <Icon name={testResult.ok ? 'check' : 'alert'} size={12} />
+                        {testResult.text}
+                      </span>
+                    ) : (
+                      <span className="ip-cloud-status">{t('用当前填写配置试拉一次，不需要先保存')}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="ip-dialog-note">{t('当前是本机模式。')}</p>
+          )}
+        </section>
+
+        {/* 数据迁移 */}
+        <section className="ip-settings-group">
+          <div className="ip-settings-head">
+            <h3>{t('数据迁移')}</h3>
+            <p>{t('导入使用已保存的云端配置；不会删除本机现有数据。')}</p>
+          </div>
+          {modeDraft === 'local' ? (
             <div className="ip-dialog-row">
               <span className="ip-dialog-row-label">{t('导出')}</span>
               <div className="ip-dialog-row-main">
@@ -1024,87 +1122,52 @@ function SettingsDialog({ onClose }) {
                 <p className="ip-dialog-note">{t('导出全部想法、进展与产出为一个 JSON 文件，便于备份或迁移。')}</p>
               </div>
             </div>
-          </>
-        ) : (
-          <>
-            <div className="ip-dialog-row">
-              <span className="ip-dialog-row-label">{t('云端地址')}</span>
-              <div className="ip-dialog-row-main">
-                <div className="ip-inline-row">
-                  <input
-                    className="ip-inline-input"
-                    value={baseDraft}
-                    placeholder={DEFAULT_CLOUD_BASE}
-                    onChange={(event) => { setBaseDraft(event.target.value); setTestResult(null) }}
-                  />
-                </div>
-                <p className="ip-dialog-note">{t('云端 ideas-api 基址，默认 {base}。', { base: DEFAULT_CLOUD_BASE })}</p>
+          ) : null}
+          <div className="ip-dialog-row">
+            <span className="ip-dialog-row-label">{t('导入到本机')}</span>
+            <div className="ip-dialog-row-main">
+              <div className="ip-inline-row">
+                <Button
+                  size="sm"
+                  icon="download"
+                  onClick={runImport}
+                  disabled={importing || !hasKey || cloudDirty}
+                  title={!hasKey ? t('还没有保存 API Key，无法导入；先填 Key 并保存。') : cloudDirty ? t('连接配置有未保存修改；先保存，再导入。') : undefined}
+                >
+                  {importing ? t('导入中…') : t('从云端导入到本机')}
+                </Button>
+              </div>
+              <p className="ip-dialog-note">
+                {!hasKey
+                  ? t('还没有保存 API Key，无法导入；先填 Key 并保存。')
+                  : cloudDirty
+                    ? t('连接配置有未保存修改：先点「保存」，再导入，避免用错地址或 Key。')
+                    : t('用已保存的云端配置拉全量，按编号合并进本机；不改当前模式，本机数据不会被删。')}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* 高级 */}
+        <section className="ip-settings-group">
+          <div className="ip-settings-head">
+            <h3>{t('高级')}</h3>
+            <p>{t('设备标识会写进想法与进展的 source 字段，跨机接力时用它定位来源。')}</p>
+          </div>
+          <div className="ip-dialog-row">
+            <span className="ip-dialog-row-label">{t('设备标识')}</span>
+            <div className="ip-dialog-row-main">
+              <div className="ip-inline-row">
+                <input
+                  className="ip-inline-input"
+                  value={deviceDraft}
+                  placeholder="dsh-mac / dsh-win / volcano"
+                  onChange={(event) => setDeviceDraft(event.target.value)}
+                />
               </div>
             </div>
-            <div className="ip-dialog-row">
-              <span className="ip-dialog-row-label">{t('API Key')}</span>
-              <div className="ip-dialog-row-main">
-                <div className="ip-inline-row">
-                  <input
-                    className="ip-inline-input"
-                    type="password"
-                    autoComplete="off"
-                    value={keyDraft}
-                    placeholder={hasKey ? t('已保存，末四位 {hint}', { hint: keyHint || '****' }) : t('粘贴云端 API Key')}
-                    onChange={(event) => { setKeyDraft(event.target.value); setTestResult(null) }}
-                  />
-                  {hasKey ? (
-                    <Button size="sm" variant="danger" onClick={clearKey} disabled={clearing || busy}>
-                      {clearing ? t('清除中…') : t('清除已保存的 Key')}
-                    </Button>
-                  ) : null}
-                </div>
-                <p className="ip-dialog-note">
-                  {hasKey
-                    ? t('已保存 API Key（末四位 {hint}）；留空表示不改。', { hint: keyHint || '****' })
-                    : t('还没配置 API Key；云端读写需要它。')}
-                </p>
-              </div>
-            </div>
-            <div className="ip-dialog-row">
-              <span className="ip-dialog-row-label">{t('测试连接')}</span>
-              <div className="ip-dialog-row-main">
-                <div className="ip-inline-row">
-                  <Button size="sm" icon="bolt" onClick={runTest} disabled={testing}>{testing ? t('测试中…') : t('测试连接')}</Button>
-                  {testResult ? (
-                    <span className={`ip-cloud-status ${testResult.ok ? 'is-ok' : 'is-error'}`}>
-                      <Icon name={testResult.ok ? 'check' : 'alert'} size={12} />
-                      {testResult.text}
-                    </span>
-                  ) : (
-                    <span className="ip-cloud-status">{t('用当前填写的地址与 Key 试拉一次云端健康检查')}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="ip-dialog-row">
-              <span className="ip-dialog-row-label">{t('导入到本机')}</span>
-              <div className="ip-dialog-row-main">
-                <div className="ip-inline-row">
-                  <Button
-                    size="sm"
-                    icon="download"
-                    onClick={runImport}
-                    disabled={importing || !hasKey}
-                    title={hasKey ? undefined : t('还没有保存 API Key，无法导入；先填 Key 并保存。')}
-                  >
-                    {importing ? t('导入中…') : t('从云端导入到本机')}
-                  </Button>
-                </div>
-                <p className="ip-dialog-note">
-                  {hasKey
-                    ? t('用已保存的云端配置拉全量，按编号合并进本机；不改当前模式，本机数据不会被删。')
-                    : t('还没有保存 API Key，无法导入；先填 Key 并保存。')}
-                </p>
-              </div>
-            </div>
-          </>
-        )}
+          </div>
+        </section>
       </div>
     </Dialog>
   )
@@ -1176,14 +1239,15 @@ export function App() {
 
   const showList = !narrow || !selectedNo
   const showDetail = !narrow || Boolean(selectedNo)
+  const readingDetail = narrow && Boolean(selectedNo)
   const highlightCapture = booted && !loading && !error && ideas.length === 0 && status === 'all' && !query.trim()
 
   return (
-    <div className={`ip-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''}`} ref={rootRef}>
+    <div className={`ip-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''} ${readingDetail ? 'is-reading' : ''}`} ref={rootRef}>
       <style>{css}</style>
       <TopBar searchRef={searchRef} onOpenSettings={() => setSettingsOpen(true)} />
-      <CaptureBar highlight={highlightCapture} />
-      {booted ? <StatusTabs /> : null}
+      {readingDetail ? null : <CaptureBar highlight={highlightCapture} />}
+      {booted && !readingDetail ? <StatusTabs /> : null}
       <div className="ip-body">
         {loading && !booted ? (
           <Spinner label={t('正在读取灵感池…')} />

@@ -133,7 +133,9 @@ export function Dialog({ title, onClose, children, footer, width = 460 }) {
     window.addEventListener('keydown', onKey, true)
     const body = ref.current
     const target = body && (body.querySelector('textarea, input, select') || body.querySelector('button'))
-    if (target) target.focus()
+    if (target) target.focus({ preventScroll: true })
+    const scroller = body && body.closest('.ip-dialog-body')
+    if (scroller) scroller.scrollTop = 0
     return () => {
       window.removeEventListener('keydown', onKey, true)
       const previous = previousRef.current

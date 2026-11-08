@@ -1,0 +1,3 @@
+# Python 缓存（服务端目录内）
+__pycache__/
+*.pyc

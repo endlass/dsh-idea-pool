@@ -432,7 +432,7 @@ export async function saveDevice(device) {
 
 /**
  * 测试云端连接（POST /api/cloud/test）。请求里的 base/apiKey 覆盖已存配置，留空则用已存。
- * 失败只返回结果并 toast，不抛异常，方便设置对话框内联展示。
+ * 失败不抛异常、也不弹 error toast（设置里已有内联提示，避免重复），结果里带 status 方便分诊。
  */
 export async function testCloud({ base, apiKey } = {}) {
   const payload = {}
@@ -449,8 +449,27 @@ export async function testCloud({ base, apiKey } = {}) {
       latencyMs: toCount(data.latencyMs),
     }
   } catch (err) {
+    return {
+      ok: false,
+      error: (err && err.message) || String(err),
+      status: err && Number.isInteger(err.status) ? err.status : 0,
+    }
+  }
+}
+
+/**
+ * 清除已保存的云端 API Key（POST settings { cloud: { clearKey: true } }）。
+ * 只改 key，不动当前 mode / base，也不触发引擎重拉（云端会 401 是用户预期内的）。
+ */
+export async function clearCloudKey() {
+  try {
+    const data = await request('api/settings', jsonInit('POST', { cloud: { clearKey: true } }))
+    set({ settings: data.settings || snapshot.settings })
+    toast(t('已清除已保存的 API Key'))
+    return data.settings || null
+  } catch (err) {
     report(err)
-    return { ok: false, error: (err && err.message) || String(err) }
+    return null
   }
 }
 

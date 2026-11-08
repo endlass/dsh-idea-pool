@@ -1,0 +1,6 @@
+# 只把服务端脚本打进镜像；测试/文档/本地数据不需要。
+__pycache__/
+*.pyc
+test_api.py
+README.md
+data/

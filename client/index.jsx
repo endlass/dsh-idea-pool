@@ -8,6 +8,7 @@ import {
   addLink,
   addUpdate,
   boot,
+  clearCloudKey,
   closeDetail,
   deleteIdea,
   exportJson,
@@ -803,11 +804,15 @@ function SettingsDialog({ onClose }) {
   const [busy, setBusy] = React.useState(false)
   const [testing, setTesting] = React.useState(false)
   const [importing, setImporting] = React.useState(false)
+  const [clearing, setClearing] = React.useState(false)
   const [testResult, setTestResult] = React.useState(null)
 
   React.useEffect(() => { loadSettings() }, [])
+  // 只在设置第一次到达时灌初值；之后会话内的 settings 变更（如清除 Key）不重置用户正在编辑的草稿
+  const seededRef = React.useRef(false)
   React.useEffect(() => {
-    if (!settings) return
+    if (!settings || seededRef.current) return
+    seededRef.current = true
     setModeDraft(settings.mode === 'cloud' ? 'cloud' : 'local')
     if (typeof settings.device === 'string') setDeviceDraft(settings.device)
     const savedBase = settings.cloud && typeof settings.cloud.base === 'string' ? settings.cloud.base : ''
@@ -843,8 +848,29 @@ function SettingsDialog({ onClose }) {
     setTesting(false)
     if (result && result.ok) {
       setTestResult({ ok: true, text: t('连接正常 · 云端 {count} 条 · 延迟 {ms} ms', { count: result.count, ms: result.latencyMs }) })
-    } else {
-      setTestResult({ ok: false, text: t('连接失败：{error}', { error: (result && result.error) || t('未知错误') }) })
+      return
+    }
+    const status = result && Number(result.status)
+    const authFailed = status === 401 || status === 403
+    setTestResult({
+      ok: false,
+      text: authFailed
+        ? t('连接失败：云端鉴权失败，请检查 API Key')
+        : t('连接失败：{error}', { error: (result && result.error) || t('未知错误') }),
+    })
+  }
+
+  const clearKey = async () => {
+    if (clearing || !hasKey) return
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return
+    const confirmed = window.confirm(t('清除已保存的 API Key？清除后云端读写会失败，直到重新填入。'))
+    if (!confirmed) return
+    setClearing(true)
+    const saved = await clearCloudKey()
+    setClearing(false)
+    if (saved) {
+      setKeyDraft('')
+      setTestResult(null)
     }
   }
 
@@ -985,6 +1011,11 @@ function SettingsDialog({ onClose }) {
                     placeholder={hasKey ? t('已保存，末四位 {hint}', { hint: keyHint || '****' }) : t('粘贴云端 API Key')}
                     onChange={(event) => { setKeyDraft(event.target.value); setTestResult(null) }}
                   />
+                  {hasKey ? (
+                    <Button size="sm" variant="danger" onClick={clearKey} disabled={clearing || busy}>
+                      {clearing ? t('清除中…') : t('清除已保存的 Key')}
+                    </Button>
+                  ) : null}
                 </div>
                 <p className="ip-dialog-note">
                   {hasKey
@@ -1013,9 +1044,21 @@ function SettingsDialog({ onClose }) {
               <span className="ip-dialog-row-label">{t('导入到本机')}</span>
               <div className="ip-dialog-row-main">
                 <div className="ip-inline-row">
-                  <Button size="sm" icon="download" onClick={runImport} disabled={importing}>{importing ? t('导入中…') : t('从云端导入到本机')}</Button>
+                  <Button
+                    size="sm"
+                    icon="download"
+                    onClick={runImport}
+                    disabled={importing || !hasKey}
+                    title={hasKey ? undefined : t('还没有保存 API Key，无法导入；先填 Key 并保存。')}
+                  >
+                    {importing ? t('导入中…') : t('从云端导入到本机')}
+                  </Button>
                 </div>
-                <p className="ip-dialog-note">{t('用已保存的云端配置拉全量，按编号合并进本机；不改当前模式，本机数据不会被删。')}</p>
+                <p className="ip-dialog-note">
+                  {hasKey
+                    ? t('用已保存的云端配置拉全量，按编号合并进本机；不改当前模式，本机数据不会被删。')
+                    : t('还没有保存 API Key，无法导入；先填 Key 并保存。')}
+                </p>
               </div>
             </div>
           </>
@@ -1044,7 +1087,7 @@ export function App() {
   const [width, setWidth] = React.useState(1200)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const narrow = width < 880
-  const compact = width < 600
+  const compact = width < 640
 
   React.useEffect(() => { boot() }, [])
 

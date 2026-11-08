@@ -1,0 +1,26 @@
+# 灵感池自建云端后端（ideas-api v2 兼容）
+#
+# 用法：
+#   1. 把下面的 IDEAS_API_TOKEN 改成你自己的随机长串（建议 >= 16 位）
+#   2. docker compose up -d
+#   3. DSH 插件设置里 mode=cloud，base=http://<这台机器>:8794/api，
+#      API Key 填同一个 token
+#
+# 数据在 ./data/ideas.sqlite（备份见 server/README.md）。
+services:
+  ideas-api:
+    build:
+      context: ./server
+    image: dsh-idea-pool-server:latest
+    container_name: ideas-api
+    environment:
+      # ⚠️ 示例值，务必改掉：插件设置里填同一个
+      IDEAS_API_TOKEN: "please-change-me-to-a-long-random-token"
+      IDEAS_DATA_DIR: "/data"
+      IDEAS_PORT: "8794"
+      IDEAS_HOST: "0.0.0.0"
+    ports:
+      - "8794:8794"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

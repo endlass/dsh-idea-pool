@@ -499,6 +499,16 @@
 .ip-root.is-compact .ip-title { font-size: 14px; }
 .ip-root.is-compact .ip-card-sum { display: none; }
 
+/* 窄屏（<640px）设置对话框：标签换行、输入自适应、按钮换行，不溢出裁切 */
+.ip-root.is-compact .ip-dialog-mask { padding: 10px; }
+.ip-root.is-compact .ip-dialog-row { flex-direction: column; gap: 5px; }
+.ip-root.is-compact .ip-dialog-row-label { width: auto; padding-top: 0; }
+.ip-root.is-compact .ip-inline-row { flex-wrap: wrap; }
+.ip-root.is-compact .ip-inline-input { flex: 1 1 100%; }
+.ip-root.is-compact .ip-status-switch { flex-wrap: wrap; }
+.ip-root.is-compact .ip-cloud-status { flex: 1 1 100%; }
+.ip-root.is-compact .ip-dialog-foot { flex-wrap: wrap; }
+
 @media (prefers-reduced-motion: reduce) {
   .ip-root *,
   .ip-root *::before,

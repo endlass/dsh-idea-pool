@@ -1,6 +1,6 @@
 {
   "name": "dsh-idea-pool",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DeepSeek Harness 插件：灵感池侧边栏工作台，本机自闭环存储，后续支持云端模式。",
   "type": "module",
   "main": "index.js",
@@ -40,7 +40,10 @@
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md",
+    "INSTALL.md",
+    "docs"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -51,5 +54,13 @@
   "devDependencies": {
     "esbuild": "^0.25.10"
   },
-  "icon": "icon.svg"
+  "icon": "icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endlass/dsh-idea-pool.git"
+  },
+  "homepage": "https://github.com/endlass/dsh-idea-pool#readme",
+  "bugs": {
+    "url": "https://github.com/endlass/dsh-idea-pool/issues"
+  }
 }

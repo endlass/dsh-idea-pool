@@ -186,4 +186,9 @@ export const EN = {
   '写第一条': 'Write the first one',
   '没有可显示的详情': 'No detail to show',
   '先清空搜索或切换状态，再选一条想法。': 'Clear the search or filters, then pick an idea.',
+  '有未保存的修改，确定关闭吗？': 'You have unsaved changes. Close anyway?',
+  '找到 {n} 条想法': 'Found {n} ideas',
+  '从左边选一条查看。': 'Pick one from the list to view it.',
+  '显示全部状态': 'Show all statuses',
+  '阅读模式 · 逐字保存': 'Reading mode · verbatim',
 }

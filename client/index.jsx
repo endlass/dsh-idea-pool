@@ -198,6 +198,8 @@ function CaptureBar({ highlight }) {
   const [busy, setBusy] = React.useState(false)
   const [focused, setFocused] = React.useState(false)
   const inputRef = React.useRef(null)
+  const latestRef = React.useRef({ raw, title, summary, tags })
+  latestRef.current = { raw, title, summary, tags }
 
   React.useEffect(() => { autoGrow(inputRef.current) }, [raw, expanded])
 
@@ -216,22 +218,27 @@ function CaptureBar({ highlight }) {
     if (summaryText) payload.summary = summaryText
     const tagList = parseTags(tags)
     if (tagList.length) payload.tags = tagList
+    const submitted = { raw, title, summary, tags }
     setBusy(true)
     const idea = await addIdea(payload)
     setBusy(false)
     if (!idea) return
-    setRaw('')
-    setTitle('')
-    setSummary('')
-    setTags('')
-    setExpanded(false)
-    // 保存后清空并聚焦：下一句可以直接接着写
-    window.requestAnimationFrame(() => {
-      const el = inputRef.current
-      if (!el) return
-      el.style.height = 'auto'
-      el.focus()
-    })
+    // 只清空「这次提交的那一版」；等待期间新输入的下一句要保留
+    setRaw(prev => (prev === submitted.raw ? '' : prev))
+    setTitle(prev => (prev === submitted.title ? '' : prev))
+    setSummary(prev => (prev === submitted.summary ? '' : prev))
+    setTags(prev => (prev === submitted.tags ? '' : prev))
+    const latest = latestRef.current
+    if (latest.raw === submitted.raw && latest.title === submitted.title && latest.summary === submitted.summary && latest.tags === submitted.tags) {
+      setExpanded(false)
+      // 保存后清空并聚焦：下一句可以直接接着写
+      window.requestAnimationFrame(() => {
+        const el = inputRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.focus()
+      })
+    }
   }
 
   const onKeyDown = (event) => {
@@ -346,13 +353,15 @@ function IdeaCard({ idea, active, highlight, onClick }) {
         </span>
         <span className="ip-card-no">{idea.idea_no}</span>
         <time className="ip-card-time" dateTime={idea.updated_at || undefined} title={formatDateTime(idea.updated_at)}>{formatShortTime(idea.updated_at)}</time>
-        {tags.slice(0, 2).map(tag => <Tag key={tag}>{tag}</Tag>)}
-        {tags.length > 2 ? <span className="ip-muted">+{tags.length - 2}</span> : null}
-        <span className="ip-card-meta">
-          {countText(idea.n_updates || 0, '1 条进展', '{n} 条进展')}
-          <span className="ip-sep">·</span>
-          {countText(idea.n_links || 0, '1 个产出', '{n} 个产出')}
-        </span>
+        {tags.slice(0, 1).map(tag => <Tag key={tag}>{tag}</Tag>)}
+        {tags.length > 1 ? <span className="ip-muted">+{tags.length - 1}</span> : null}
+        {(idea.n_updates || idea.n_links) ? (
+          <span className="ip-card-meta">
+            {idea.n_updates ? countText(idea.n_updates, '1 条进展', '{n} 条进展') : null}
+            {idea.n_updates && idea.n_links ? <span className="ip-sep">·</span> : null}
+            {idea.n_links ? countText(idea.n_links, '1 个产出', '{n} 个产出') : null}
+          </span>
+        ) : null}
       </div>
     </button>
   )
@@ -385,8 +394,10 @@ function ListView({ narrow }) {
             ? t('在上面写一句，回车换行，⌘/Ctrl+Enter 入池。')
             : t('在上面写一句，回车换行，⌘/Ctrl+Enter 入池。本机模式的数据只在这台机器上。')}
       >
-        {filtered ? (
-          <Button size="sm" onClick={() => { setQuery(''); setFilter('all') }}>{t('清空搜索与筛选')}</Button>
+        {query.trim() ? (
+          <Button size="sm" onClick={() => setQuery('')}>{t('清空搜索')}</Button>
+        ) : status !== 'all' ? (
+          <Button size="sm" onClick={() => setFilter('all')}>{t('显示全部状态')}</Button>
         ) : (
           <Button size="sm" onClick={() => document.querySelector('.ip-capture-input')?.focus()}>{t('写第一条')}</Button>
         )}
@@ -463,10 +474,11 @@ function AddUpdateForm({ no }) {
       toast(t('先写点内容'), { error: true })
       return
     }
+    const submitted = content
     setBusy(true)
     const ok = await addUpdate(no, text)
     setBusy(false)
-    if (ok) setContent('')
+    if (ok) setContent(prev => (prev === submitted ? '' : prev))
   }
   return (
     <form className="ip-abox" onSubmit={submit}>
@@ -507,12 +519,13 @@ function AddLinkForm({ no }) {
       toast(t('链接要以 http(s):// 开头'), { error: true })
       return
     }
+    const submitted = { title, url }
     setBusy(true)
     const ok = await addLink(no, { title: title.trim() || target, url: target })
     setBusy(false)
     if (ok) {
-      setTitle('')
-      setUrl('')
+      setTitle(prev => (prev === submitted.title ? '' : prev))
+      setUrl(prev => (prev === submitted.url ? '' : prev))
     }
   }
   return (
@@ -540,6 +553,11 @@ function EditIdeaDialog({ idea, onClose }) {
   const [tags, setTags] = React.useState((idea.tags || []).join(', '))
   const [note, setNote] = React.useState(idea.source_note || '')
   const [busy, setBusy] = React.useState(false)
+  const dirty = title !== (idea.title || '') || summary !== (idea.summary || '') || raw !== (idea.raw_text || '') || tags !== (idea.tags || []).join(', ') || note !== (idea.source_note || '')
+  const requestClose = () => {
+    if (dirty && !window.confirm(t('有未保存的修改，确定关闭吗？'))) return
+    onClose()
+  }
   const submit = async (event) => {
     event.preventDefault()
     const titleText = title.trim()
@@ -561,12 +579,12 @@ function EditIdeaDialog({ idea, onClose }) {
   return (
     <Dialog
       title={t('编辑想法')}
-      onClose={onClose}
+      onClose={requestClose}
       width={560}
       footer={(
         <>
           <span className="ip-spacer" />
-          <Button onClick={onClose}>{t('取消')}</Button>
+          <Button onClick={requestClose}>{t('取消')}</Button>
           <Button variant="primary" type="submit" form="ip-edit-form" disabled={busy}>{busy ? t('保存中…') : t('保存')}</Button>
         </>
       )}
@@ -626,6 +644,8 @@ function DetailPane({ narrow }) {
   const selectedNo = useStore(s => s.selectedNo)
   const query = useStore(s => s.query)
   const status = useStore(s => s.status)
+  const ideas = useStore(s => s.ideas)
+  const total = useStore(s => s.total)
   const detail = useStore(s => s.detail)
   const detailLoading = useStore(s => s.detailLoading)
   const detailError = useStore(s => s.detailError)
@@ -645,14 +665,18 @@ function DetailPane({ narrow }) {
 
   if (!selectedNo) {
     const filtered = query.trim() !== '' || status !== 'all'
+    // 空池 / 零结果只保留左栏一个主空态；有结果但未选中时给「找到 N 条」
+    if (ideas.length === 0 || (filtered && total === 0)) {
+      return <div className="ip-detail-pane" />
+    }
     return (
       <div className="ip-detail-pane">
         <div className="ip-scroll">
           <Empty
             icon="note"
-            title={filtered ? t('没有可显示的详情') : t('选一条想法看详情')}
+            title={filtered ? t('找到 {n} 条想法', { n: total }) : t('选一条想法看详情')}
             hint={filtered
-              ? t('先清空搜索或切换状态，再选一条想法。')
+              ? t('从左边选一条查看。')
               : t('左边是灵感列表；宽屏时点一张卡片，这里显示原文、进展与产出。')}
           />
         </div>
@@ -753,7 +777,7 @@ function DetailPane({ narrow }) {
             <section className="ip-section">
               <div className="ip-section-head">
                 <span className="ip-section-title">{t('原文')}</span>
-                <span className="ip-section-count">{t('逐字保存 · 只读')}</span>
+                <span className="ip-section-count">{t('阅读模式 · 逐字保存')}</span>
                 <span className="ip-spacer" />
                 <IconButton icon="copy" size={13} label={t('复制原文')} onClick={() => copyText(idea.raw_text || '', t('已复制原文'))} />
               </div>

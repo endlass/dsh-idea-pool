@@ -312,4 +312,6 @@ export const EN = {
   '单向刷新：只把云端新内容合并到本机；本机的新内容不会回写云端，不是双向同步。': 'One-way refresh: only new cloud content is merged into local; new local content is never written back to the cloud. This is not two-way sync.',
   '已从云端刷新：+{updates} 条进展、+{links} 个产出、+{ideas} 条想法': 'Refreshed from cloud: +{updates} updates, +{links} links, +{ideas} ideas',
   '本机已是最新（云端 {n} 条）': 'Local is up to date ({n} ideas in the cloud)',
+  '当前灵感池=云端模式：回填请用 idea_pool 工具（跟随云端模式）或 ideas.py 的云端后端。': 'The idea pool is in CLOUD mode. Write progress through the idea_pool tool (follows cloud mode) or the ideas.py cloud backend.',
+  '当前灵感池=本机模式：回填请用 idea_pool 工具（跟随本机模式）或本机 /idea-pool/api/，不要只写云端账本。': 'The idea pool is in LOCAL mode. Write progress through the idea_pool tool (follows local mode) or the local /idea-pool/api/; do not write only to the cloud ledger.',
 }

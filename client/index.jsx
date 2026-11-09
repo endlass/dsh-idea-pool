@@ -1140,7 +1140,10 @@ function DetailPane({ narrow }) {
   )
   const promptLabel = (idea.status === 'pool' && updates.length === 0) ? t('复制展开提示词') : t('复制接力提示词')
   const copyExpand = () => copyText(expandInstruction(idea), t('已复制提示词，可粘贴到对话继续'))
-  const advancePrompt = `${expandInstruction(idea)}\n\n（本次从灵感池 ${no} 一键推进；完成后回填进展与产出。）`
+  const ledgerHint = mode === 'cloud'
+    ? t('当前灵感池=云端模式：回填请用 idea_pool 工具（跟随云端模式）或 ideas.py 的云端后端。')
+    : t('当前灵感池=本机模式：回填请用 idea_pool 工具（跟随本机模式）或本机 /idea-pool/api/，不要只写云端账本。')
+  const advancePrompt = `${expandInstruction(idea)}\n\n${ledgerHint}\n（本次从灵感池 ${no} 一键推进；完成后回填进展与产出。）`
   const autoBindSession = (beforeIds, attempt = 0) => {
     const sessions = clientEnv.sessions
     const snapshot = sessions && sessions.list && typeof sessions.list.getSnapshot === 'function' ? sessions.list.getSnapshot() : null

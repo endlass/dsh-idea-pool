@@ -33,21 +33,20 @@ import {
 import { Badge, Button, Dialog, Empty, Field, Icon, IconButton, Spinner, StatusBadge, Tag, Toast, copyText } from './ui.jsx'
 
 const PANEL_ID = 'idea-pool'
-const SITE_BASE = 'https://www.zhaoningyuan.com'
-// 与契约 CLOUD_DEFAULT_BASE 保持一致：首次切云端时预填这个基址
-const DEFAULT_CLOUD_BASE = 'https://www.zhaoningyuan.com/ideas/api'
+// 不预置任何第三方后端（契约 CLOUD_DEFAULT_BASE = ''），云端基址由用户显式填写；
+// 输入框只把 EXAMPLE_CLOUD_BASE 当占位示例，不代表任何真实服务。
+const EXAMPLE_CLOUD_BASE = 'https://ideas.example.com/ideas/api'
 const STATUS_ORDER = ['pool', 'active', 'done', 'parked']
 const STATUS_LABELS = { pool: '已入池', active: '推进中', done: '已收口', parked: '搁置' }
 const TABS = [{ key: 'all', label: '全部' }, ...STATUS_ORDER.map(key => ({ key, label: STATUS_LABELS[key] }))]
 
-// source 是机器/工具标识；按网站同一套口径显示成人能读的名字
+/** 来源标识 → 人话；只放通用机器名，具体个人主机名按原样显示。 */
 const SOURCE_MAP = {
   mac: 'Mac',
   'dsh-mac': 'Mac',
   win: 'Windows',
   'dsh-win': 'Windows',
   dsh: '本机',
-  volcano: '火山云',
   manual: '手动',
   web: '网页',
   feishu: '飞书',
@@ -96,8 +95,15 @@ function safeUrl(url) {
   return text
 }
 
-function ideaUrl(idea) {
-  return `${SITE_BASE}/ideas/#${idea.idea_no}`
+/**
+ * 网站深链是「云端基址约定」的附加能力：基址形如 `<站点>/ideas/api` 时，
+ * 同站点的想法页在 `<站点>/ideas/#IDEA-xxx`。其他形态（如自建 `/api`）没有网页，
+ * 返回空串，调用方退回复制本机引用文本——不编造不存在的链接。
+ */
+function siteIdeaUrl(cloudBase, idea) {
+  const base = String(cloudBase || '').replace(/\/+$/, '')
+  const match = /^(https?:\/\/.+\/ideas)\/api$/i.exec(base)
+  return match ? `${match[1]}/#${idea.idea_no}` : ''
 }
 
 /** 标题可能来自 raw_text 前 40 字（可能含换行）；显示时折叠成单行。 */
@@ -1028,6 +1034,7 @@ function DetailPane({ narrow }) {
   const detailLoading = useStore(s => s.detailLoading)
   const detailError = useStore(s => s.detailError)
   const mode = useStore(s => s.mode)
+  const cloudBase = useStore(s => s.cloudBase)
   const device = useStore(s => s.device)
   const [editing, setEditing] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
@@ -1197,13 +1204,14 @@ function DetailPane({ narrow }) {
     }
   }
   const isCloud = mode === 'cloud'
-  // 本机模式复制一段「本机引用」；云端模式复制与网站一致的规范链接
+  // 云端基址符合「站点/ideas/api」约定时复制网站深链；否则（自建纯 API、本机模式）复制引用文本
+  const websiteUrl = isCloud ? siteIdeaUrl(cloudBase, idea) : ''
   const copyIdeaLink = () => {
-    if (isCloud) {
-      copyText(ideaUrl(idea), t('已复制链接'))
+    if (websiteUrl) {
+      copyText(websiteUrl, t('已复制链接'))
       return
     }
-    copyText(`灵感池 ${no}《${displayTitle(idea)}》（本机模式：用 idea_pool 工具按编号读取，或在 DSH 侧栏「灵感池」查看）`, t('已复制引用'))
+    copyText(`灵感池 ${no}《${displayTitle(idea)}》（用 idea_pool 工具按编号读取，或在 DSH 侧栏「灵感池」查看）`, t('已复制引用'))
   }
 
   return (
@@ -1235,7 +1243,7 @@ function DetailPane({ narrow }) {
               <Button size="sm" variant="primary" icon="spark" onClick={advance}>{t('一键推进')}</Button>
               <Button size="sm" variant="ghost" icon="plus" onClick={() => { setAddingUpdate(true); window.requestAnimationFrame(() => document.querySelector('.ip-abox')?.scrollIntoView({ block: 'center' })) }}>{t('记进展')}</Button>
               <Button size="sm" icon="copy" onClick={copyExpand} title={t('复制后粘贴给 agent，继续展开或接力')}>{promptLabel}</Button>
-              <Button size="sm" icon="link" onClick={copyIdeaLink}>{t(isCloud ? '复制链接' : '复制引用')}</Button>
+              <Button size="sm" icon="link" onClick={copyIdeaLink}>{t(websiteUrl ? '复制链接' : '复制引用')}</Button>
               <span className="ip-spacer" />
               <div className="ip-status-menu" ref={statusMenuRef}>
                 <button
@@ -1459,7 +1467,7 @@ function SettingsDialog({ onClose }) {
   const mode = useStore(s => s.mode)
   const [modeDraft, setModeDraft] = React.useState(mode === 'cloud' ? 'cloud' : 'local')
   const [deviceDraft, setDeviceDraft] = React.useState(device)
-  const [baseDraft, setBaseDraft] = React.useState(DEFAULT_CLOUD_BASE)
+  const [baseDraft, setBaseDraft] = React.useState('')
   const [keyDraft, setKeyDraft] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [testing, setTesting] = React.useState(false)
@@ -1476,15 +1484,15 @@ function SettingsDialog({ onClose }) {
     setModeDraft(settings.mode === 'cloud' ? 'cloud' : 'local')
     if (typeof settings.device === 'string') setDeviceDraft(settings.device)
     const savedBase = settings.cloud && typeof settings.cloud.base === 'string' ? settings.cloud.base : ''
-    setBaseDraft(savedBase || DEFAULT_CLOUD_BASE)
+    setBaseDraft(savedBase)
   }, [settings])
 
   const savedCloud = (settings && settings.cloud) || {}
   const hasKey = Boolean(savedCloud.hasKey)
   const keyHint = typeof savedCloud.keyHint === 'string' ? savedCloud.keyHint : ''
   const savedBase = typeof savedCloud.base === 'string' ? savedCloud.base : ''
-  const shownBase = normalizeBaseUrl(baseDraft) || savedBase || DEFAULT_CLOUD_BASE
-  const cloudDirty = normalizeBaseUrl(baseDraft) !== normalizeBaseUrl(savedBase || DEFAULT_CLOUD_BASE) || keyDraft.trim() !== ''
+  const shownBase = normalizeBaseUrl(baseDraft) || savedBase
+  const cloudDirty = normalizeBaseUrl(baseDraft) !== normalizeBaseUrl(savedBase) || keyDraft.trim() !== ''
   const localPath = (settings && typeof settings.storagePath === 'string' && settings.storagePath) || storagePath
 
   const switchMode = (next) => {
@@ -1612,7 +1620,9 @@ function SettingsDialog({ onClose }) {
               </div>
               <p className="ip-dialog-note">
                 {modeDraft === 'cloud'
-                  ? t('云端模式：数据在云端 {base}，本机数据不动。', { base: shownBase })
+                  ? (shownBase
+                    ? t('云端模式：数据在云端 {base}，本机数据不动。', { base: shownBase })
+                    : t('云端模式：数据在云端，本机数据不动。'))
                   : t('本机模式：数据只存在这台机器的 DSH_HOME/idea-pool/ 下，由插件直接读写，不经过网络；换机器看不到。')}
               </p>
             </div>
@@ -1643,11 +1653,11 @@ function SettingsDialog({ onClose }) {
                     <input
                       className="ip-inline-input"
                       value={baseDraft}
-                      placeholder={DEFAULT_CLOUD_BASE}
+                      placeholder={EXAMPLE_CLOUD_BASE}
                       onChange={(event) => { setBaseDraft(event.target.value); setTestResult(null) }}
                     />
                   </div>
-                  <p className="ip-dialog-note">{t('云端 ideas-api 基址，默认 {base}。', { base: DEFAULT_CLOUD_BASE })}</p>
+                  <p className="ip-dialog-note">{t('云端 ideas-api 基址，例如 {base}；留空表示不配置。', { base: EXAMPLE_CLOUD_BASE })}</p>
                 </div>
               </div>
               <div className="ip-dialog-row">
@@ -1761,7 +1771,7 @@ function SettingsDialog({ onClose }) {
                 <input
                   className="ip-inline-input"
                   value={deviceDraft}
-                  placeholder="dsh-mac / dsh-win / volcano"
+                  placeholder="dsh-mac / dsh-win / office-pc"
                   onChange={(event) => setDeviceDraft(event.target.value)}
                 />
               </div>

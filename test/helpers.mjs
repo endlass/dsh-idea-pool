@@ -359,10 +359,10 @@ export async function startMockCloud({ apiKey = 'test-key-1234', ideas = [] } = 
     }
   })
 
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await new Promise((resolve) => server.listen(0, 'localhost', resolve))
   const { port } = server.address()
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: `http://localhost:${port}`,
     state,
     apiKey,
     requests: state.requests,

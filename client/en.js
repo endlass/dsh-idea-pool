@@ -123,8 +123,9 @@ export const EN = {
   '运行模式': 'Run mode',
   '本机模式：数据只存在这台机器的 DSH_HOME/idea-pool/ 下，由插件直接读写，不经过网络；换机器看不到。': 'Local mode: data lives under this machine’s DSH_HOME/idea-pool/ and is read and written directly by the plugin, with no network. Other machines can’t see it.',
   '云端模式：数据在云端 {base}，本机数据不动。': 'Cloud mode: data lives in the cloud at {base}; local data stays untouched.',
+  '云端模式：数据在云端，本机数据不动。': 'Cloud mode: data lives in the cloud; local data stays untouched.',
   '云端地址': 'Cloud base URL',
-  '云端 ideas-api 基址，默认 {base}。': 'Base URL of the cloud ideas-api; defaults to {base}.',
+  '云端 ideas-api 基址，例如 {base}；留空表示不配置。': 'Base URL of the cloud ideas-api, e.g. {base}; leave empty if unused.',
   '云端地址不能为空': 'Cloud base URL can’t be empty',
   '云端地址要以 http(s):// 开头': 'Cloud base URL must start with http(s)://',
   'API Key': 'API Key',
@@ -164,7 +165,6 @@ export const EN = {
 
   // 来源 / source
   '本机': 'Local',
-  '火山云': 'Volcano Cloud',
   '手动': 'Manual',
   '网页': 'Web',
   '飞书': 'Feishu',

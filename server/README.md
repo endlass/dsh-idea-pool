@@ -1,7 +1,7 @@
 # 灵感池自建云端后端（ideas-api v2 兼容）
 
 给 **dsh-idea-pool** 插件的「云端模式」用的自建服务端：纯 Python 标准库 + SQLite，
-接口与火山云的 `ideas-api` v2 一致（`rev` / `if_rev` 乐观锁、`client_id` 幂等）。
+接口与 `ideas-api` v2 一致（`rev` / `if_rev` 乐观锁、`client_id` 幂等）。
 不想用现成云端、或想在自己 NAS/小主机上放一份灵感池数据时用它。
 
 - 单文件实现：[`ideas_api.py`](ideas_api.py)（http.server + sqlite3 + json，无第三方依赖）
@@ -30,7 +30,7 @@
 冒烟检查（经 Docker 端口映射的请求来源不是 loopback，必须带 key）：
 
 ```bash
-curl -s -H "X-API-Key: <你的 token>" http://127.0.0.1:8794/api/health
+curl -s -H "X-API-Key: <你的 token>" http://localhost:8794/api/health
 # {"ok": true, "count": 0}
 ```
 
@@ -53,8 +53,8 @@ IDEAS_PORT=8794 \
 python3 server/ideas_api.py
 ```
 
-- 默认只监听 `127.0.0.1`；要让 DSH 装在别的机器上连，设 `IDEAS_HOST=0.0.0.0` 并保证 token 已设置。
-- 本机 loopback 直接访问（如 `curl http://127.0.0.1:8794/api/health`）可免 token；跨机器必须带 token。
+- 默认只监听本机回环地址；要让 DSH 装在别的机器上连，设 `IDEAS_HOST=0.0.0.0` 并保证 token 已设置。
+- 本机 loopback 直接访问（如 `curl http://localhost:8794/api/health`）可免 token；跨机器必须带 token。
 - 自己占了个端口反代（Caddy/nginx）也行，记得透传 `X-Forwarded-For`（见下）。
 
 ---
@@ -65,7 +65,7 @@ python3 server/ideas_api.py
 | --- | --- | --- |
 | `IDEAS_DATA_DIR` | `./data` | SQLite 数据目录（自动建目录/建表） |
 | `IDEAS_PORT` | `8794` | 监听端口 |
-| `IDEAS_HOST` | `127.0.0.1` | 监听地址；Dockerfile 里默认 `0.0.0.0` |
+| `IDEAS_HOST` | `localhost` | 监听地址；Dockerfile 里默认 `0.0.0.0` |
 | `IDEAS_API_TOKEN` | 空 | 访问 token。**空 = 只允许 loopback**，非 loopback 一律 401 |
 | `IDEAS_ACCESS_LOG` | 空 | 设 `1` 打开访问日志（默认静默） |
 
@@ -118,7 +118,7 @@ python3 server/ideas_api.py
 
 请求头二选一：`X-API-Key: <token>` 或 `Authorization: Bearer <token>`（常量时间比较）。
 
-- **loopback 豁免**：来源是 127.0.0.1/::1 且没有经过代理时免 token，方便本机调试。
+- **loopback 豁免**：来源是本机回环地址且没有经过代理时免 token，方便本机调试。
 - 带 `X-Forwarded-For` / `Forwarded` / `X-Real-IP` 的请求视为经反向代理，**不豁免**，必须带 token。
   把服务放到 nginx/Caddy 后面时，反代要透传这些头（否则代理会把来源变成 loopback 而绕过 token）。
 - 本服务**不带 TLS**。公网访问请放 Caddy/nginx 做 HTTPS，或者只在内网/VPN 里用。
@@ -128,7 +128,7 @@ nginx 片段示例（TLS 自行配置）：
 
 ```nginx
 location /ideas/api/ {
-    proxy_pass http://127.0.0.1:8794/api/;
+    proxy_pass http://localhost:8794/api/;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
@@ -152,7 +152,7 @@ location /ideas/api/ {
 
 ## 迁移
 
-- 火山云 → 本自建服务/本机：用插件的「从云端导入到本机」，或仓库根 `scripts/import-cloud.mjs`
+- 别的 ideas-api → 本自建服务/本机：用插件的「从云端导入到本机」，或仓库根 `scripts/import-cloud.mjs`
   （`--base` 指到本服务、`--key-file` 放 token 文件）。
 - 本机 → 本自建服务：把插件切到云端模式（base 指向本服务）后新写的直接进云端；
   存量本机数据没有一键上云工具（契约里也没做双向同步）。

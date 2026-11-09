@@ -207,7 +207,7 @@ test('continuity：云端不可达时降级（reachable=false、drift=null、本
   const root = await tempRoot('idea-pool-continuity-offline')
   try {
     const settings = new Settings({ root, device: 'dsh-test' })
-    await settings.update({ cloud: { base: 'http://127.0.0.1:1', apiKey: 'unreachable-key' } })
+    await settings.update({ cloud: { base: 'http://localhost:1', apiKey: 'unreachable-key' } })
     const service = new IdeaService({ root, settings, cloudTimeoutMs: 300 })
     await service.add({ raw_text: '本机想法' })
     const status = await service.continuity()
@@ -327,7 +327,7 @@ test('契约：normalizeState 保留合法 last_sync、坏值丢弃、旧 state 
       updated_at: '2026-11-08T00:00:00.000Z',
       last_sync: {
         at: '2026-11-09T14:30:00.000Z',
-        base: 'https://www.zhaoningyuan.com/ideas/api',
+        base: 'https://ideas.example.com/ideas/api',
         cloud_total: 25,
         imported: 0,
         updated: 4,

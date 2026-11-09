@@ -4,9 +4,9 @@
 
 给 dsh-idea-pool 插件的「云端模式」当自建服务端用：
     python3 server/ideas_api.py
-默认监听 http://127.0.0.1:8794/api，数据在 ./data/ideas.sqlite。
+默认监听 http://localhost:8794/api，数据在 ./data/ideas.sqlite。
 
-接口（与火山云 ideas-api v2 一致，合同见仓库 CONTRACT.md §11.6）：
+接口（与 ideas-api v2 一致，合同见仓库 CONTRACT.md §11.6）：
     GET    /api/health                        -> {ok, count}
     GET    /api/ideas?status=&q=&limit=&offset=
                                               -> {ok, ideas, counts, total}
@@ -26,7 +26,7 @@
   loopback 来源可豁免（便于本机调试）；但带 X-Forwarded-For/Forwarded/X-Real-IP 的
   请求视为经反向代理，不免豁，必须校验 token。未配置 token 时只允许 loopback。
 - 环境变量：IDEAS_DATA_DIR（默认 ./data）、IDEAS_PORT（默认 8794）、
-  IDEAS_HOST（默认 127.0.0.1；容器里设 0.0.0.0）、IDEAS_API_TOKEN、
+  IDEAS_HOST（默认 localhost；容器里设 0.0.0.0）、IDEAS_API_TOKEN、
   IDEAS_ACCESS_LOG=1 打开访问日志。
 - 单进程多线程（ThreadingHTTPServer），SQLite WAL；适合单用户/单实例自用。
 
@@ -49,7 +49,7 @@ from urllib.parse import parse_qs, urlparse
 # 配置与常量
 # ---------------------------------------------------------------------------
 
-DEFAULT_HOST = "127.0.0.1"
+DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 8794
 DEFAULT_DATA_DIR = "./data"
 DB_FILENAME = "ideas.sqlite"
@@ -583,7 +583,7 @@ class IdeasHandler(BaseHTTPRequestHandler):
             "counts": counts,
             "total": total,
         }
-        # counts 额外带 total（火山云现服务只有四个状态；插件把它当「全部」计数用，多这一个键兼容）
+        # counts 额外带 total（参考实现只有四个状态；插件把它当「全部」计数用，多这一个键兼容）
         payload["counts"]["total"] = counts_total
         self._send_json(200, payload)
 

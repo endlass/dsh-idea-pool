@@ -140,7 +140,7 @@ test('import-local：云端网络错误映射 502', async () => {
   const root = await tempRoot('idea-pool-import-net')
   try {
     const settings = new Settings({ root, device: 'dsh-test' })
-    await settings.update({ cloud: { base: 'http://127.0.0.1:1', apiKey: 'k' } })
+    await settings.update({ cloud: { base: 'http://localhost:1', apiKey: 'k' } })
     const service = new IdeaService({ root, settings, cloudTimeoutMs: 500 })
     await assert.rejects(service.importLocal(), (err) => err.status === 502 && /连不上云端/.test(err.message))
   } finally {

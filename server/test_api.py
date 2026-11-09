@@ -38,14 +38,14 @@ class IdeasApiTestCase(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="ideas-api-test-")
         self.httpd = ideas_api.create_server(
-            host="127.0.0.1",
+            host="localhost",
             port=0,
             data_dir=self.tmpdir,
             token=self.token,
         )
         self.thread = threading.Thread(target=self.httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         self.thread.start()
-        self.base = "http://127.0.0.1:%d/api" % self.httpd.server_address[1]
+        self.base = "http://localhost:%d/api" % self.httpd.server_address[1]
 
     def tearDown(self):
         self.httpd.shutdown()
@@ -381,10 +381,10 @@ class IdeasApiTestCase(unittest.TestCase):
 
     def test_server_without_token_allows_loopback_only(self):
         other_dir = tempfile.mkdtemp(prefix="ideas-api-notoken-")
-        other = ideas_api.create_server(host="127.0.0.1", port=0, data_dir=other_dir, token=None)
+        other = ideas_api.create_server(host="localhost", port=0, data_dir=other_dir, token=None)
         thread = threading.Thread(target=other.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         thread.start()
-        base = "http://127.0.0.1:%d/api" % other.server_address[1]
+        base = "http://localhost:%d/api" % other.server_address[1]
         try:
             # loopback 直接访问：放行
             with urllib.request.urlopen(base + "/health", timeout=10) as resp:

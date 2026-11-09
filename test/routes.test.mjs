@@ -80,7 +80,7 @@ test('鉴权：requestRejection 收到的是 { headers: req.headers }（契约 �
     const seen = []
     const ctx = { connection: { requestRejection: (input) => { seen.push(input); return undefined } } }
     const handler = createRouteHandler({ ctx, service })
-    const headers = { host: '127.0.0.1:49680', cookie: 'token=abc' }
+    const headers = { host: 'localhost:49680', cookie: 'token=abc' }
     await request(handler, { headers })
     assert.deepEqual(seen, [{ headers }])
     // 服务抛错时 fail closed

@@ -96,7 +96,7 @@ test('get：详情归一（时间 ISO、id 前缀、相对链接绝对化、rev 
     assert.equal(detail.updates[0].id, 'u_c_11')
     assert.equal(detail.updates[0].created_at, LATER_TIME_ISO)
     assert.equal(detail.links[0].id, 'l_c_21')
-    assert.match(detail.links[0].url, /^http:\/\/127\.0\.0\.1:\d+\/docs\/21$/)
+    assert.match(detail.links[0].url, /^http:\/\/localhost:\d+\/docs\/21$/)
   }, { ideas: seedOne() })
 })
 
@@ -189,7 +189,7 @@ test('错误映射：网络不通 → 502 连不上云端；超时 → 502 连�
   const root = await tempRoot('idea-pool-cloud-net')
   try {
     const settings = new Settings({ root, device: 'dsh-test' })
-    await settings.update({ cloud: { base: 'http://127.0.0.1:1/api', apiKey: 'k' } })
+    await settings.update({ cloud: { base: 'http://localhost:1/api', apiKey: 'k' } })
     const engine = new CloudEngine({ settings, timeoutMs: 200 })
     await assert.rejects(engine.list({}), (err) => err.status === 502 && /^连不上云端：/.test(err.message))
   } finally {
@@ -282,7 +282,7 @@ test('exportData：全量列表 + 详情合并成 {schema, device, exported_at, 
     assert.equal(idea.raw_text, '云端原文\n第二行')
     assert.equal(idea.updates.length, 1)
     assert.equal(idea.links.length, 1)
-    assert.match(idea.links[0].url, /^http:\/\/127\.0\.0\.1:\d+\/docs\/21$/)
+    assert.match(idea.links[0].url, /^http:\/\/localhost:\d+\/docs\/21$/)
     assert.ok(mock.requests.some((row) => row.method === 'GET' && row.path === '/ideas/IDEA-101'))
   }, { ideas: seedOne() })
 })
@@ -322,7 +322,7 @@ test('testConnection：失败统一 502（鉴权/网络），且不回显 key', 
   try {
     const settings = new Settings({ root, device: 'dsh-test' })
     const engine = new CloudEngine({ settings, timeoutMs: 300 })
-    await assert.rejects(engine.testConnection({ base: 'http://127.0.0.1:1' }), (err) => err.status === 502 && /连不上云端/.test(err.message))
+    await assert.rejects(engine.testConnection({ base: 'http://localhost:1' }), (err) => err.status === 502 && /连不上云端/.test(err.message))
     // 非法 base 是客户端错误，保持 400
     await assert.rejects(engine.testConnection({ base: 'not-a-url' }), (err) => err.status === 400)
     await assert.rejects(engine.testConnection({ apiKey: 42 }), (err) => err.status === 400)

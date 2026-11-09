@@ -23,6 +23,6 @@ VOLUME ["/data"]
 
 # 容器内健康检查走 loopback（服务端对 loopback 豁免 token，未配置 token 时也能过）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD python3 -c "import os, sys, urllib.request; port = os.environ.get('IDEAS_PORT', '8794'); sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:%s/api/health' % port, timeout=3).status == 200 else 1)"
+    CMD python3 -c "import os, sys, urllib.request; port = os.environ.get('IDEAS_PORT', '8794'); sys.exit(0 if urllib.request.urlopen('http://localhost:%s/api/health' % port, timeout=3).status == 200 else 1)"
 
 CMD ["python3", "/app/ideas_api.py"]

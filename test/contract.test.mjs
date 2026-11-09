@@ -180,8 +180,8 @@ test('normalizeSettingsPatch（v0.2）：device/mode/cloud.base/apiKey/clearKey�
 })
 
 test('normalizeCloudBase：http(s) 去尾斜杠，非法返回 null', () => {
-  assert.equal(normalizeCloudBase('https://www.zhaoningyuan.com/ideas/api/'), 'https://www.zhaoningyuan.com/ideas/api')
-  assert.equal(normalizeCloudBase('  http://127.0.0.1:8080/api///  '), 'http://127.0.0.1:8080/api')
+  assert.equal(normalizeCloudBase('https://ideas.example.com/ideas/api/'), 'https://ideas.example.com/ideas/api')
+  assert.equal(normalizeCloudBase('  http://localhost:8080/api///  '), 'http://localhost:8080/api')
   assert.equal(normalizeCloudBase(''), null)
   assert.equal(normalizeCloudBase('   '), null)
   assert.equal(normalizeCloudBase('ftp://x'), null)

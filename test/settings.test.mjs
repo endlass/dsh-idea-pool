@@ -23,7 +23,7 @@ test('默认设置：local 模式 + 默认云端 base，读不凭空建文件', 
     const value = await settings.read()
     assert.deepEqual(value, { device: 'dsh-test', mode: 'local', cloud: { base: CLOUD_DEFAULT_BASE, apiKey: '' } })
     assert.deepEqual(defaultSettings('dsh-test'), value)
-    assert.equal(CLOUD_DEFAULT_BASE, 'https://www.zhaoningyuan.com/ideas/api')
+    assert.equal(CLOUD_DEFAULT_BASE, '')
     await assert.rejects(stat(join(root, 'settings.json')), (err) => err.code === 'ENOENT')
     // 公开视图：无密钥
     assert.deepEqual(publicSettings(value).cloud, { base: CLOUD_DEFAULT_BASE, hasKey: false, keyHint: '' })

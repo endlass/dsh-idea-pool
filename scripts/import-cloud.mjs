@@ -6,12 +6,15 @@
  * 不是双向同步：本地之后的新想法/进展不会自动回写云端。
  *
  * 用法：
- *   node scripts/import-cloud.mjs --dry-run     # 只看统计，不写盘
- *   node scripts/import-cloud.mjs               # 合并写入 $DSH_HOME/idea-pool/state.json
+ *   node scripts/import-cloud.mjs --base https://ideas.example.com/ideas/api --dry-run
+ *   node scripts/import-cloud.mjs --base https://ideas.example.com/ideas/api
  *
  * 选项：
- *   --base <url>       云端 API 基址（默认 https://www.zhaoningyuan.com/ideas/api）
- *   --key-file <path>  密钥文件（默认依次尝试 ~/.hermes/ideas-api.key、~/.dsh/ideas-api.key）
+ *   --base <url>       云端 API 基址（也可用环境变量 IDEAS_API_BASE；没有默认值，必填）
+ *   --site <url>       可选：站点根地址，用于把云端相对链接补成绝对地址；
+ *                      缺省只在 base 形如 <站点>/ideas/api 时推断，否则保留相对链接
+ *   --key-file <path>  密钥文件（也可用环境变量 IDEAS_API_KEY；缺省依次尝试
+ *                      $DSH_HOME/ideas-api.key、~/.ideas-api.key）
  *   --state <path>     本机 state.json（默认 $DSH_HOME/idea-pool/state.json）
  *   --replace          忽略本机已有想法，整体替换（默认按 idea_no 合并）
  *
@@ -21,33 +24,53 @@ import { copyFile, mkdir, open, readFile, rename, stat, unlink, writeFile } from
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-const SITE_BASE = 'https://www.zhaoningyuan.com'
-const DEFAULT_BASE = `${SITE_BASE}/ideas/api`
-const KEY_PATHS = [join(homedir(), '.hermes', 'ideas-api.key'), join(homedir(), '.dsh', 'ideas-api.key')]
+const DEFAULT_DEVICE = process.platform === 'darwin' ? 'dsh-mac' : process.platform === 'win32' ? 'dsh-win' : 'dsh'
+/** 由 <站点>/ideas/api 推断站点根，用于补全云端返回的相对链接；推断不出来就为空。 */
+function siteFromBase(base) {
+  const match = /^(https?:\/\/.+\/ideas)\/api$/i.exec(base)
+  return match ? match[1] : ''
+}
 const STATUSES = new Set(['pool', 'active', 'parked', 'done'])
 const SCHEMA = 1
 const LOCK_WAIT_MS = 3000
 const LOCK_RETRY_MS = 60
 
 function parseArgs(argv) {
-  const args = { base: DEFAULT_BASE, keyFile: '', state: '', dryRun: false, replace: false }
+  const args = {
+    base: process.env.IDEAS_API_BASE || '',
+    site: process.env.IDEAS_SITE || '',
+    keyFile: '',
+    state: '',
+    dryRun: false,
+    replace: false,
+  }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--dry-run') args.dryRun = true
     else if (arg === '--replace') args.replace = true
-    else if (arg === '--base') args.base = argv[++i]
+    else if (arg === '--base') args.base = argv[++i] || ''
+    else if (arg === '--site') args.site = argv[++i] || ''
     else if (arg === '--key-file') args.keyFile = argv[++i]
     else if (arg === '--state') args.state = argv[++i]
     else if (arg === '-h' || arg === '--help') { console.log('用法见文件头注释'); process.exit(0) }
     else { console.error(`未知参数：${arg}`); process.exit(2) }
   }
+  args.base = String(args.base || '').trim().replace(/\/+$/, '')
+  if (!args.base) {
+    console.error('缺少 --base（或环境变量 IDEAS_API_BASE）：请填你自己的 ideas-api 基址，例如 https://ideas.example.com/ideas/api')
+    process.exit(2)
+  }
+  args.site = String(args.site || '').trim().replace(/\/+$/, '') || siteFromBase(args.base)
   const dshHome = process.env.DSH_HOME || join(homedir(), '.dsh')
   args.state = args.state || join(dshHome, 'idea-pool', 'state.json')
+  args.keyPaths = [join(dshHome, 'ideas-api.key'), join(homedir(), '.ideas-api.key')]
   return args
 }
 
-async function readKey(explicit) {
-  const candidates = explicit ? [explicit] : KEY_PATHS
+async function readKey(explicit, fallbacks) {
+  const fromEnv = typeof process.env.IDEAS_API_KEY === 'string' ? process.env.IDEAS_API_KEY.trim() : ''
+  if (fromEnv) return fromEnv
+  const candidates = explicit ? [explicit] : fallbacks
   for (const path of candidates) {
     try {
       const text = (await readFile(path, 'utf8')).trim()
@@ -56,7 +79,7 @@ async function readKey(explicit) {
       if (err.code !== 'ENOENT') throw err
     }
   }
-  throw new Error('没有找到云端 API 密钥（--key-file 或 ~/.hermes/ideas-api.key）')
+  throw new Error('没有找到云端 API 密钥（环境变量 IDEAS_API_KEY、--key-file 或 $DSH_HOME/ideas-api.key）')
 }
 
 async function apiJson(base, path, key) {
@@ -80,16 +103,16 @@ function toIso(text, fallback = new Date().toISOString()) {
   return Number.isNaN(date.getTime()) ? fallback : date.toISOString()
 }
 
-/** 云端相对链接（/docs/...）补成站点绝对地址；本机面板里点开才不是 404。 */
-function absoluteUrl(value) {
+/** 云端相对链接（/docs/...）补成站点绝对地址；推断不出站点时原样保留。 */
+function absoluteUrl(value, siteBase) {
   const text = typeof value === 'string' ? value.trim() : ''
   if (!text) return ''
   if (/^https?:\/\//i.test(text)) return text
-  if (text.startsWith('/')) return SITE_BASE + text
+  if (siteBase && text.startsWith('/')) return siteBase + text
   return text
 }
 
-function convertIdea(detail) {
+function convertIdea(detail, siteBase) {
   const idea = detail?.idea ?? {}
   const no = String(idea.idea_no ?? '').toUpperCase()
   if (!/^IDEA-\d+$/.test(no)) throw new Error(`云端返回了非法编号：${String(idea.idea_no)}`)
@@ -115,7 +138,7 @@ function convertIdea(detail) {
     links: (Array.isArray(detail?.links) ? detail.links : []).map((row) => ({
       id: `l_c_${row.id}`,
       title: typeof row.title === 'string' ? row.title : '',
-      url: absoluteUrl(row.url),
+      url: absoluteUrl(row.url, siteBase),
       ref_type: typeof row.ref_type === 'string' && row.ref_type ? row.ref_type : 'external',
       ref_id: typeof row.ref_id === 'string' ? row.ref_id : '',
       created_at: toIso(row.created_at, created),
@@ -148,7 +171,7 @@ function normalizeLocalState(raw) {
   const state = raw && typeof raw === 'object' ? raw : {}
   return {
     schema: SCHEMA,
-    device: typeof state.device === 'string' && state.device ? state.device : 'dsh-mac',
+    device: typeof state.device === 'string' && state.device ? state.device : DEFAULT_DEVICE,
     next_no: Number.isInteger(state.next_no) && state.next_no > 0 ? state.next_no : 1,
     ideas: Array.isArray(state.ideas) ? state.ideas : [],
     meta: state.meta && typeof state.meta === 'object' ? state.meta : {},
@@ -210,7 +233,7 @@ async function writeState(statePath, state) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  const key = await readKey(args.keyFile)
+  const key = await readKey(args.keyFile, args.keyPaths)
   console.log(`云端：${args.base}`)
   const list = await apiJson(args.base, '/ideas?limit=500', key)
   const ideas = Array.isArray(list?.ideas) ? list.ideas : []
@@ -221,7 +244,7 @@ async function main() {
     const no = summary.idea_no
     if (!no) continue
     const detail = await apiJson(args.base, `/ideas/${encodeURIComponent(no)}`, key)
-    details.push(convertIdea(detail))
+    details.push(convertIdea(detail, args.site))
   }
   const cloudUpdates = details.reduce((n, idea) => n + idea.updates.length, 0)
   const cloudLinks = details.reduce((n, idea) => n + idea.links.length, 0)
@@ -249,7 +272,7 @@ async function main() {
   merged.sort((a, b) => String(a.idea_no).localeCompare(String(b.idea_no)))
   const nextState = {
     schema: SCHEMA,
-    device: localState.device || 'dsh-mac',
+    device: localState.device || DEFAULT_DEVICE,
     next_no: Math.max(nextNoOf(merged), localState.next_no || 1),
     ideas: merged,
     meta: { updated_at: new Date().toISOString() },

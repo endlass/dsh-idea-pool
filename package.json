@@ -1,7 +1,7 @@
 {
   "name": "dsh-idea-pool",
   "version": "0.3.1",
-  "description": "DeepSeek Harness 插件：灵感池侧边栏工作台，本机自闭环存储，后续支持云端模式。",
+  "description": "DeepSeek Harness 插件：侧栏灵感池工作台，本机优先、云端可选（ideas-api 兼容后端）。",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -32,6 +32,10 @@
     "ideas"
   ],
   "license": "MIT",
+  "author": "Zhaoxingchen (https://github.com/endlass)",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "index.js",
     "lib",
@@ -43,7 +47,14 @@
     "LICENSE",
     "CHANGELOG.md",
     "INSTALL.md",
-    "docs"
+    "SECURITY.md",
+    "CONTRACT.md",
+    "README.en.md",
+    "docs",
+    "deploy",
+    "server",
+    "compose.yaml",
+    "scripts/import-cloud.mjs"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",

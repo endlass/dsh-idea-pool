@@ -34,7 +34,8 @@
   "license": "MIT",
   "author": "Zhaoxingchen (https://github.com/endlass)",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "files": [
     "index.js",

@@ -39,6 +39,7 @@ test('定义形态：raw JSON Schema（不 import defineTool），output.render 
   assert.deepEqual(Object.keys(tool.parameters.properties).sort(), [
     'action',
     'content',
+    'gist',
     'idea_no',
     'limit',
     'link_title',

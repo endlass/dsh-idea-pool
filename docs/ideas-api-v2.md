@@ -28,3 +28,13 @@
 
 - 网站与 `ideas.py` 仍是「最后写入者获胜」；等它们也带 `if_rev` 后才会启用乐观锁。
 - 本次冒烟创建过 IDEA-027/028 并删除，随后把 `ideas_id_seq` 复位到 26；编号不复用可见记录。
+
+## v0.3 增量（2026-11-09）
+
+- `ideas` 表新增两列（均可选、有默认值，旧客户端忽略）：
+  - `gist TEXT NOT NULL DEFAULT ''`：一句话摘要，列表/梳理优先显示；
+  - `session_refs JSONB NOT NULL DEFAULT '[]'::jsonb`：DSH 会话引用数组，每项 `{session_id,title,device,bound_at,reason}`。
+- 所有 idea 响应新增 `gist`、`session_refs`；`POST /api/ideas` 与 `PATCH /api/ideas/{no}` 接受这两个字段；列表搜索包含 `gist`。
+- 线上 PostgreSQL 迁移：`deploy/ideas-api-v3.sql` 已在 `ideas` 库执行；迁移前备份 `/tmp/ideas-pg-before-v3-*.dump`，旧 server.py 备份 `/opt/ideas-api/server.py.bak-20261109-214304`。
+- 自建 SQLite 版 `server/ideas_api.py` 自动 `ALTER TABLE` 补列。
+- 25 条既有想法的 gist 已回填：本地 `~/.dsh/idea-pool/state.json` 与线上 PG 均已写入，未改动 `updated_at`/`rev`。

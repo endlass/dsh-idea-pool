@@ -712,3 +712,30 @@
 .ip-review-meta { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 10.5px; line-height: 15px; color: var(--ip-ink4); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ip-review-meta .is-stale { color: var(--ip-warn); font-weight: 600; }
 .ip-root.is-narrow .ip-review { padding: 8px 10px 20px; }
+
+.ip-gist {
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--ip-business);
+  border-radius: 0 var(--ip-r-sm) var(--ip-r-sm) 0;
+  background: color-mix(in srgb, var(--ip-business) 5%, var(--ip-card));
+  font-size: 14px; line-height: 23px; color: var(--ip-ink); white-space: pre-wrap;
+}
+.ip-session-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 4px; }
+.ip-session-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 5px 8px; border: 1px solid var(--ip-line); border-radius: 7px;
+  background: var(--ip-card); color: var(--ip-ink2); font-size: 12px; text-align: left;
+}
+.ip-session-chip:hover { background: var(--ip-hover); border-color: var(--ip-line-strong); }
+.ip-session-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-session-device { flex: none; color: var(--ip-ink4); font-size: 10.5px; }
+.ip-session-results { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.ip-session-result {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  padding: 8px 9px; border: 1px solid var(--ip-line); border-radius: 7px;
+  background: var(--ip-card); text-align: left;
+}
+.ip-session-result:hover { background: var(--ip-hover); }
+.ip-session-id { font-family: var(--ip-mono); font-size: 11px; color: var(--ip-ink3); }
+.ip-session-snippet { font-size: 12px; line-height: 18px; color: var(--ip-ink2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

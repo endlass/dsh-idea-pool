@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="DSH 0.2.x" src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/MIT-open%20source-111?style=flat-square"></a>
-  <img alt="v0.2.1" src="https://img.shields.io/badge/version-0.2.1-111?style=flat-square">
+  <img alt="v0.3.0" src="https://img.shields.io/badge/version-0.3.0-111?style=flat-square">
 </p>
 
 ## 它是什么
@@ -28,9 +28,9 @@
 
 ## 能力
 
-- **随手记**：原文逐字保存，⌘/Ctrl+Enter 入池；标题可后补（缺省取原文前 40 字）。
+- **随手记**：原文逐字保存，⌘/Ctrl+Enter 入池；标题可后补（缺省取原文前 40 字）；可填一句话摘要，详情里再展开详细说明。
 - **看得全**：列表 + 梳理两种视图；梳理按「待决定 / 该推进了 / 正在推进」分桶，并支持随机捞一条；列表卡片显示状态、编号、摘要、标签、进展/产出数和更新时间。
-- **推进闭环**：详情里维护进展（append-only 时间线）、关联产出、状态；一键复制「展开推进指令」，让 agent 按灵感池纪律接手。
+- **推进闭环**：详情里维护进展（append-only 时间线）、关联产出、状态；可一键推进（打开新会话预填推进提示词），也可把 DSH 会话绑定到想法上跳转/追溯，或复制指令交给 agent。
 - **可回退**：本机模式 30 步撤销（三方合并，不抹掉之后的改动）。
 - **agent 工具**：会话里直接 `idea_pool`（add/list/get/progress/link/status/export），与界面共用同一个服务入口。
 - **迁移**：一键「从云端导入到本机」，或 `scripts/import-cloud.mjs` 单向迁移。

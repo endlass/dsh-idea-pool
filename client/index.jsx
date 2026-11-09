@@ -126,7 +126,7 @@ function daysSince(iso) {
 
 /** 梳理视图的一行：优先摘要首句，没有摘要就退回原文首句。 */
 function reviewLine(idea) {
-  const source = String(idea.summary || '').trim() || String(idea.raw_text || '').trim()
+  const source = String(idea.gist || '').trim() || String(idea.summary || '').trim() || String(idea.raw_text || '').trim()
   const text = source.replace(/\s+/g, ' ')
   if (!text) return ''
   const first = text.split(/[。！？!?]/)[0].trim() || text
@@ -213,13 +213,14 @@ function CaptureBar({ highlight }) {
   const [raw, setRaw] = React.useState('')
   const [title, setTitle] = React.useState('')
   const [summary, setSummary] = React.useState('')
+  const [gist, setGist] = React.useState('')
   const [tags, setTags] = React.useState('')
   const [expanded, setExpanded] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [focused, setFocused] = React.useState(false)
   const inputRef = React.useRef(null)
-  const latestRef = React.useRef({ raw, title, summary, tags })
-  latestRef.current = { raw, title, summary, tags }
+  const latestRef = React.useRef({ raw, title, summary, gist, tags })
+  latestRef.current = { raw, title, summary, gist, tags }
 
   React.useEffect(() => { autoGrow(inputRef.current) }, [raw, expanded])
 
@@ -236,9 +237,11 @@ function CaptureBar({ highlight }) {
     if (titleText) payload.title = titleText
     const summaryText = summary.trim()
     if (summaryText) payload.summary = summaryText
+    const gistText = gist.trim()
+    if (gistText) payload.gist = gistText
     const tagList = parseTags(tags)
     if (tagList.length) payload.tags = tagList
-    const submitted = { raw, title, summary, tags }
+    const submitted = { raw, title, summary, gist, tags }
     setBusy(true)
     const idea = await addIdea(payload)
     setBusy(false)
@@ -247,9 +250,10 @@ function CaptureBar({ highlight }) {
     setRaw(prev => (prev === submitted.raw ? '' : prev))
     setTitle(prev => (prev === submitted.title ? '' : prev))
     setSummary(prev => (prev === submitted.summary ? '' : prev))
+    setGist(prev => (prev === submitted.gist ? '' : prev))
     setTags(prev => (prev === submitted.tags ? '' : prev))
     const latest = latestRef.current
-    if (latest.raw === submitted.raw && latest.title === submitted.title && latest.summary === submitted.summary && latest.tags === submitted.tags) {
+    if (latest.raw === submitted.raw && latest.title === submitted.title && latest.summary === submitted.summary && latest.gist === submitted.gist && latest.tags === submitted.tags) {
       setExpanded(false)
       // 保存后清空并聚焦：下一句可以直接接着写
       window.requestAnimationFrame(() => {
@@ -273,7 +277,7 @@ function CaptureBar({ highlight }) {
     }
   }
 
-  const collapsed = !focused && !expanded && !raw && !title && !summary && !tags
+  const collapsed = !focused && !expanded && !raw && !title && !summary && !gist && !tags
   return (
     <section
       className={`ip-capture ${collapsed ? 'is-collapsed' : ''} ${focused ? 'is-focused' : ''} ${highlight ? 'is-highlight' : ''}`}
@@ -312,6 +316,9 @@ function CaptureBar({ highlight }) {
         <div className="ip-capture-extra">
           <Field label={t('标题（可选）')}>
             <input value={title} onChange={event => setTitle(event.target.value)} placeholder={t('留空时自动取原文前 40 字')} />
+          </Field>
+          <Field label={t('一句话摘要（可选）')}>
+            <input value={gist} onChange={event => setGist(event.target.value)} placeholder={t('≤60 字，方便日后扫列表')} maxLength={200} />
           </Field>
           <Field label={t('标签（可选）')}>
             <input value={tags} onChange={event => setTags(event.target.value)} placeholder={t('逗号分隔，如：研究, 渠道')} />
@@ -413,7 +420,7 @@ function IdeaCard({ idea, active, highlight, onClick }) {
       onClick={onClick}
     >
       <div className="ip-card-title">{displayTitle(idea)}</div>
-      {idea.summary ? <div className="ip-card-sum">{idea.summary}</div> : null}
+      {(idea.gist || idea.summary) ? <div className="ip-card-sum">{idea.gist || idea.summary}</div> : null}
       <div className="ip-card-foot">
         <span className={`ip-card-status is-${idea.status}`}>
           <i aria-hidden="true" />
@@ -735,11 +742,12 @@ function AddLinkForm({ no }) {
 function EditIdeaDialog({ idea, onClose }) {
   const [title, setTitle] = React.useState(idea.title || '')
   const [summary, setSummary] = React.useState(idea.summary || '')
+  const [gist, setGist] = React.useState(idea.gist || '')
   const [raw, setRaw] = React.useState(idea.raw_text || '')
   const [tags, setTags] = React.useState((idea.tags || []).join(', '))
   const [note, setNote] = React.useState(idea.source_note || '')
   const [busy, setBusy] = React.useState(false)
-  const dirty = title !== (idea.title || '') || summary !== (idea.summary || '') || raw !== (idea.raw_text || '') || tags !== (idea.tags || []).join(', ') || note !== (idea.source_note || '')
+  const dirty = title !== (idea.title || '') || summary !== (idea.summary || '') || gist !== (idea.gist || '') || raw !== (idea.raw_text || '') || tags !== (idea.tags || []).join(', ') || note !== (idea.source_note || '')
   const requestClose = () => {
     if (dirty && !window.confirm(t('有未保存的修改，确定关闭吗？'))) return
     onClose()
@@ -755,6 +763,7 @@ function EditIdeaDialog({ idea, onClose }) {
     const ok = await updateIdea(idea.idea_no, {
       title: titleText,
       summary: summary.trim(),
+      gist: gist.trim(),
       raw_text: raw,
       tags: parseTags(tags),
       source_note: note.trim(),
@@ -779,7 +788,10 @@ function EditIdeaDialog({ idea, onClose }) {
         <Field label={t('标题')}>
           <input value={title} onChange={(event) => setTitle(event.target.value)} />
         </Field>
-        <Field label={t('摘要')}>
+        <Field label={t('一句话摘要')}>
+          <input value={gist} maxLength={200} onChange={(event) => setGist(event.target.value)} placeholder={t('≤60 字，方便扫列表')} />
+        </Field>
+        <Field label={t('详细摘要')}>
           <textarea rows={2} value={summary} onChange={(event) => setSummary(event.target.value)} />
         </Field>
         <Field label={t('原文（逐字保留）')}>
@@ -830,6 +842,97 @@ function nextStepOf(content) {
   return match ? match[1].trim() : ''
 }
 
+/* ---------- 会话绑定 ---------- */
+
+function SessionPicker({ idea, onClose }) {
+  const device = useStore(s => s.device)
+  const [state, setState] = React.useState({ loading: true, note: '', error: '', items: [] })
+  React.useEffect(() => {
+    const sessions = clientEnv.sessions
+    if (!sessions) {
+      setState({ loading: false, note: '', error: t('当前环境不支持会话搜索。'), items: [] })
+      return undefined
+    }
+    // 会话搜索索引可能被宿主关闭；退化为最近会话列表，仍然可以手动绑定。
+    const recent = () => {
+      const snapshot = sessions.list && typeof sessions.list.getSnapshot === 'function' ? sessions.list.getSnapshot() : null
+      const ids = Array.isArray(snapshot && snapshot.ids) ? snapshot.ids : []
+      const byId = (snapshot && snapshot.byId) || {}
+      return ids.slice(0, 30).map((id) => {
+        const row = byId[id] || {}
+        const title = String(row.title || row.name || id)
+        return { sessionId: id, snippet: title }
+      })
+    }
+    const controller = new AbortController()
+    setState({ loading: true, note: '', error: '', items: [] })
+    const fallback = (note) => {
+      const items = recent()
+      if (items.length) setState({ loading: false, note, error: '', items })
+      else setState({ loading: false, note: '', error: t('没有可用的会话列表。'), items: [] })
+    }
+    if (typeof sessions.search !== 'function') {
+      fallback(t('会话搜索不可用，显示最近会话。'))
+      return undefined
+    }
+    Promise.resolve(sessions.search(idea.idea_no, controller.signal)).then((result) => {
+      if (controller.signal.aborted) return
+      if (result && result.ok === false) {
+        fallback(t('会话搜索索引未开启，显示最近会话；也可以手动挑选。'))
+        return
+      }
+      const payload = result && result.ok ? result.value : result
+      const items = Array.isArray(payload && payload.items) ? payload.items : []
+      if (!items.length) {
+        fallback(t('没有搜到包含编号的会话，显示最近会话。'))
+        return
+      }
+      setState({ loading: false, note: '', error: '', items })
+    }).catch(() => {
+      if (!controller.signal.aborted) fallback(t('会话搜索失败，显示最近会话。'))
+    })
+    return () => controller.abort()
+  }, [idea.idea_no])
+  const bind = async (item) => {
+    const refs = Array.isArray(idea.session_refs) ? idea.session_refs : []
+    if (refs.some(ref => ref.session_id === item.sessionId)) {
+      toast(t('这条会话已经关联过了'))
+      return
+    }
+    const next = [...refs, {
+      session_id: item.sessionId,
+      title: String(item.snippet || '').replace(/\s+/g, ' ').slice(0, 120),
+      device: device || '',
+      bound_at: new Date().toISOString(),
+      reason: 'search',
+    }]
+    const saved = await updateIdea(idea.idea_no, { session_refs: next }, t('已关联会话'))
+    if (saved) onClose()
+  }
+  return (
+    <Dialog
+      title={t('关联 DSH 会话')}
+      onClose={onClose}
+      width={560}
+      footer={<><span className="ip-spacer" /><Button onClick={onClose}>{t('关闭')}</Button></>}
+    >
+      <p className="ip-dialog-note">{t('按编号「{no}」搜索当前 DSH 的会话内容；点一条即可绑定。', { no: idea.idea_no })}</p>
+      {state.loading ? <Spinner label={t('正在搜索会话…')} /> : null}
+      {state.note ? <p className="ip-dialog-note">{state.note}</p> : null}
+      {state.error ? <p className="ip-dialog-note is-error">{state.error}</p> : null}
+      {!state.loading && !state.error && !state.items.length ? <p className="ip-dialog-note">{t('没有搜到包含这个编号的会话。发送过「一键推进」的会话通常能被搜到。')}</p> : null}
+      <div className="ip-session-results">
+        {state.items.map(item => (
+          <button key={item.sessionId} type="button" className="ip-session-result" onClick={() => bind(item)}>
+            <span className="ip-session-id">{String(item.sessionId).slice(0, 18)}</span>
+            <span className="ip-session-snippet">{String(item.snippet || '').replace(/\s+/g, ' ').slice(0, 180)}</span>
+          </button>
+        ))}
+      </div>
+    </Dialog>
+  )
+}
+
 /* ---------- 详情主面板 ---------- */
 
 function DetailPane({ narrow }) {
@@ -850,6 +953,7 @@ function DetailPane({ narrow }) {
   const [rawOpen, setRawOpen] = React.useState(false)
   const [latestOpen, setLatestOpen] = React.useState(false)
   const [statusMenuOpen, setStatusMenuOpen] = React.useState(false)
+  const [sessionPickerOpen, setSessionPickerOpen] = React.useState(false)
   const statusMenuRef = React.useRef(null)
 
   React.useEffect(() => {
@@ -860,6 +964,7 @@ function DetailPane({ narrow }) {
     setRawOpen(false)
     setLatestOpen(false)
     setStatusMenuOpen(false)
+    setSessionPickerOpen(false)
   }, [selectedNo])
 
   React.useEffect(() => {
@@ -951,6 +1056,30 @@ function DetailPane({ narrow }) {
   )
   const promptLabel = (idea.status === 'pool' && updates.length === 0) ? t('复制展开提示词') : t('复制接力提示词')
   const copyExpand = () => copyText(expandInstruction(idea), t('已复制提示词，可粘贴到对话继续'))
+  const advancePrompt = `${expandInstruction(idea)}\n\n（本次从灵感池 ${no} 一键推进；完成后回填进展与产出。）`
+  const advance = () => {
+    const workspace = clientEnv.uiWorkspace
+    if (workspace && typeof workspace.startSession === 'function') {
+      try {
+        workspace.startSession(undefined, { prompt: advancePrompt, whenDraftExists: 'append' })
+        toast(t('已打开新会话并预填推进提示词；发送后可回来「查找相关会话」绑定。'))
+        return
+      } catch (err) {
+        // 宿主不支持时退回复制，不阻断
+      }
+    }
+    copyText(advancePrompt, t('当前界面不能直接开新会话，已复制推进提示词'))
+  }
+  const openSession = (ref) => {
+    const workspace = clientEnv.uiWorkspace
+    if (!workspace || typeof workspace.openSession !== 'function') {
+      toast(t('当前环境不能打开 DSH 会话'), { error: true })
+      return
+    }
+    try { workspace.openSession(ref.session_id) } catch (err) {
+      toast(t('打开会话失败：{error}', { error: err.message || err }), { error: true })
+    }
+  }
   const isCloud = mode === 'cloud'
   // 本机模式复制一段「本机引用」；云端模式复制与网站一致的规范链接
   const copyIdeaLink = () => {
@@ -987,7 +1116,8 @@ function DetailPane({ narrow }) {
               <div className="ip-detail-tags">{idea.tags.map(tag => <Tag key={tag}>{tag}</Tag>)}</div>
             ) : null}
             <div className="ip-detail-actions">
-              <Button size="sm" variant="primary" icon="plus" onClick={() => { setAddingUpdate(true); window.requestAnimationFrame(() => document.querySelector('.ip-abox')?.scrollIntoView({ block: 'center' })) }}>{t('记进展')}</Button>
+              <Button size="sm" variant="primary" icon="spark" onClick={advance}>{t('一键推进')}</Button>
+              <Button size="sm" variant="ghost" icon="plus" onClick={() => { setAddingUpdate(true); window.requestAnimationFrame(() => document.querySelector('.ip-abox')?.scrollIntoView({ block: 'center' })) }}>{t('记进展')}</Button>
               <Button size="sm" icon="copy" onClick={copyExpand} title={t('复制后粘贴给 agent，继续展开或接力')}>{promptLabel}</Button>
               <Button size="sm" icon="link" onClick={copyIdeaLink}>{t(isCloud ? '复制链接' : '复制引用')}</Button>
               <span className="ip-spacer" />
@@ -1028,6 +1158,7 @@ function DetailPane({ narrow }) {
             </div>
           </div>
           <div className="ip-detail-body">
+            {idea.gist ? <div className="ip-gist">{idea.gist}</div> : null}
             {!hasContext ? rawSection : null}
             {idea.summary ? (
               <section className="ip-section">
@@ -1067,6 +1198,25 @@ function DetailPane({ narrow }) {
             ) : null}
             <section className="ip-section">
               <div className="ip-section-head">
+                <span className="ip-section-title">{t('关联会话')}</span>
+                <span className="ip-section-count">{(idea.session_refs || []).length}</span>
+                <span className="ip-spacer" />
+                <Button size="sm" variant="ghost" icon="search" onClick={() => setSessionPickerOpen(true)}>{t('查找相关会话')}</Button>
+              </div>
+              {(idea.session_refs || []).length ? (
+                <div className="ip-session-chips">
+                  {idea.session_refs.map(ref => (
+                    <button key={ref.session_id} type="button" className="ip-session-chip" onClick={() => openSession(ref)} title={ref.session_id}>
+                      <Icon name="monitor" size={12} />
+                      <span>{ref.title || String(ref.session_id).slice(0, 18)}</span>
+                      {ref.device ? <span className="ip-session-device">{ref.device}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : <p className="ip-muted">{t('还没有关联会话；一键推进后可用「查找相关会话」绑定。')}</p>}
+            </section>
+            <section className="ip-section">
+              <div className="ip-section-head">
                 <span className="ip-section-title">{t('关联产出')}</span>
                 <span className="ip-section-count">{links.length}</span>
                 <span className="ip-spacer" />
@@ -1076,12 +1226,25 @@ function DetailPane({ narrow }) {
                 ? <ul className="ip-links">{links.map(link => <LinkRow key={link.id || link.url} link={link} />)}</ul>
                 : <p className="ip-muted">{t('还没有关联产出 —— 推进后把成果链接挂在这里。')}</p>}
             </section>
+            <section className="ip-section">
+              <div className="ip-section-head">
+                <span className="ip-section-title">{t('进展历史')}</span>
+                <span className="ip-section-count">{history.length}</span>
+                <span className="ip-spacer" />
+                <Button size="sm" variant="ghost" icon="plus" onClick={() => setAddingUpdate(value => !value)}>{t('加进展')}</Button>
+              </div>
+              {history.length
+                ? <ul className="ip-timeline">{history.map(update => <TimelineItem key={update.id || update.created_at} update={update} />)}</ul>
+                : <p className="ip-muted">{latest ? t('没有更早的进展。') : t('还没有进展记录。')}</p>}
+              {addingUpdate ? <AddUpdateForm no={no} /> : null}
+            </section>
             {hasContext ? rawSection : null}
           </div>
         </div>
       </div>
       {editing ? <EditIdeaDialog idea={idea} onClose={() => setEditing(false)} /> : null}
       {deleting ? <DeleteDialog idea={idea} onClose={() => setDeleting(false)} /> : null}
+      {sessionPickerOpen ? <SessionPicker idea={idea} onClose={() => setSessionPickerOpen(false)} /> : null}
     </div>
   )
 }
@@ -1515,15 +1678,23 @@ export function App() {
   )
 }
 
+/* ---------- 宿主客户端服务（可选：会话搜索 / 打开会话 / 新建会话预填） ---------- */
+
+let clientEnv = { sessions: null, uiWorkspace: null }
+
 /* ---------- 侧栏入口图标 ---------- */
 
 function PanelIcon({ size }) {
   return <Icon name="bulb" size={size} />
 }
 
-export const inject = ['slots']
+export const inject = ['slots', 'sessions', 'uiWorkspace']
 
 export function apply(ctx) {
+  const service = (name) => {
+    try { return typeof ctx.get === 'function' ? ctx.get(name) : ctx[name] } catch (err) { return undefined }
+  }
+  clientEnv = { sessions: service('sessions') ?? ctx.sessions ?? null, uiWorkspace: service('uiWorkspace') ?? ctx.uiWorkspace ?? null }
   // 主面板：点侧栏图标后整页打开
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID }, App))
   // 侧栏名字只在注册时读一次，换语言时重新注册

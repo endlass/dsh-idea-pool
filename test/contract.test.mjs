@@ -89,11 +89,13 @@ test('normalizeCreate：标题兜底、source 默认、未知字段丢弃', () =
     { raw_text: '  逐字原文  ', evil: 'drop me', status: 'done', created_at: '2000-01-01' },
     { device: 'dsh-test' },
   )
-  assert.deepEqual(Object.keys(fields).sort(), ['raw_text', 'source', 'source_note', 'summary', 'tags', 'title'])
+  assert.deepEqual(Object.keys(fields).sort(), ['gist', 'raw_text', 'session_refs', 'source', 'source_note', 'summary', 'tags', 'title'])
   assert.equal(fields.raw_text, '逐字原文')
   assert.equal(fields.title, '逐字原文')
   assert.equal(fields.source, 'dsh-test')
   assert.equal(fields.summary, '')
+  assert.equal(fields.gist, '')
+  assert.deepEqual(fields.session_refs, [])
   assert.deepEqual(fields.tags, [])
   assert.equal(fields.source_note, '')
 })
@@ -207,6 +209,7 @@ test('projectSummary / projectDetail：详情额外带 raw_text/source_note/rev'
   const summary = projectSummary(idea)
   assert.deepEqual(Object.keys(summary).sort(), [
     'created_at',
+    'gist',
     'idea_no',
     'n_links',
     'n_updates',

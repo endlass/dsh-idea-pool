@@ -350,3 +350,25 @@ test('add 使用 settings.device 作为 source 缺省值', async () => {
     assert.equal(added.idea.source, 'dsh-settings')
   })
 })
+
+test('gist / session_refs：创建、修改、详情回读', async () => {
+  await withService(async ({ service }) => {
+    const created = await service.add({
+      raw_text: '给这条加一句话摘要和会话引用',
+      gist: '一句话说明这条想法在说什么。',
+      session_refs: [{ session_id: 'session-1', title: '推进会话', device: 'dsh-test', reason: 'manual' }],
+    })
+    assert.equal(created.idea.gist, '一句话说明这条想法在说什么。')
+    assert.equal(created.idea.session_refs.length, 1)
+    const no = created.idea.idea_no
+    const updated = await service.update(no, {
+      gist: '改过的一句话。',
+      session_refs: [{ session_id: 'session-2', title: '另一个会话', device: 'dsh-test', reason: 'search' }],
+    })
+    assert.equal(updated.idea.gist, '改过的一句话。')
+    assert.equal(updated.idea.session_refs[0].session_id, 'session-2')
+    const detail = await service.get(no)
+    assert.equal(detail.idea.gist, '改过的一句话。')
+    assert.equal(detail.idea.session_refs[0].session_id, 'session-2')
+  })
+})

@@ -64,6 +64,8 @@ MAX_TITLE_LENGTH = 200
 MAX_SOURCE_LENGTH = 64
 MAX_RAW_TEXT_LENGTH = 1_000_000
 MAX_SUMMARY_LENGTH = 100_000
+MAX_GIST_LENGTH = 200
+MAX_SESSION_REFS = 20
 MAX_SOURCE_NOTE_LENGTH = 100_000
 MAX_CLIENT_ID_LENGTH = 64
 MAX_REF_LENGTH = 64
@@ -83,6 +85,8 @@ CREATE TABLE IF NOT EXISTS ideas (
     title       TEXT    NOT NULL DEFAULT '',
     raw_text    TEXT    NOT NULL DEFAULT '',
     summary     TEXT    NOT NULL DEFAULT '',
+    gist        TEXT    NOT NULL DEFAULT '',
+    session_refs TEXT   NOT NULL DEFAULT '[]',
     status      TEXT    NOT NULL DEFAULT 'pool',
     tags        TEXT    NOT NULL DEFAULT '[]',
     source      TEXT    NOT NULL DEFAULT '',
@@ -246,6 +250,41 @@ def connect_db(db_path):
     return conn
 
 
+def _json_load(value, fallback):
+    try:
+        parsed = json.loads(value or "")
+    except (ValueError, TypeError):
+        return fallback
+    return parsed if isinstance(parsed, type(fallback)) else fallback
+
+
+def normalize_session_refs(value):
+    """校验/裁剪 session_refs；只保留 UI 需要的字段。"""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ApiError(400, "session_refs 必须是数组")
+    refs = []
+    seen = set()
+    for row in value[:MAX_SESSION_REFS]:
+        if not isinstance(row, dict):
+            raise ApiError(400, "session_refs 的每一项必须是对象")
+        session_id = as_text(row.get("session_id"), "session_refs.session_id", 200).strip()
+        if not session_id:
+            raise ApiError(400, "session_refs.session_id 不能为空")
+        if session_id in seen:
+            continue
+        seen.add(session_id)
+        refs.append({
+            "session_id": session_id,
+            "title": as_text(row.get("title"), "session_refs.title", MAX_TITLE_LENGTH).strip(),
+            "device": as_text(row.get("device"), "session_refs.device", MAX_SOURCE_LENGTH).strip(),
+            "bound_at": as_text(row.get("bound_at"), "session_refs.bound_at", 64).strip() or now_beijing(),
+            "reason": row.get("reason") if row.get("reason") in ("advance", "manual", "search") else "manual",
+        })
+    return refs
+
+
 def init_db(db_path):
     """建目录 + 建表 + 唯一索引（幂等）。"""
     directory = os.path.dirname(os.path.abspath(db_path))
@@ -255,6 +294,12 @@ def init_db(db_path):
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(SCHEMA_SQL)
+        # v0.3：旧库补 gist / session_refs 两列（幂等）
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(ideas)").fetchall()}
+        if "gist" not in columns:
+            conn.execute("ALTER TABLE ideas ADD COLUMN gist TEXT NOT NULL DEFAULT ''")
+        if "session_refs" not in columns:
+            conn.execute("ALTER TABLE ideas ADD COLUMN session_refs TEXT NOT NULL DEFAULT '[]'")
         conn.commit()
     finally:
         conn.close()
@@ -278,6 +323,8 @@ def serialize_idea(row):
         "title": row["title"],
         "raw_text": row["raw_text"],
         "summary": row["summary"],
+        "gist": row["gist"] if "gist" in row.keys() else "",
+        "session_refs": _json_load(row["session_refs"] if "session_refs" in row.keys() else "[]", []),
         "status": row["status"],
         "tags": tags if isinstance(tags, list) else [],
         "source": row["source"],
@@ -508,9 +555,9 @@ class IdeasHandler(BaseHTTPRequestHandler):
             like = "%" + escaped + "%"
             clauses.append(
                 "(i.title LIKE ? ESCAPE '\\' OR i.raw_text LIKE ? ESCAPE '\\'"
-                " OR i.summary LIKE ? ESCAPE '\\' OR i.tags LIKE ? ESCAPE '\\')"
+                " OR i.summary LIKE ? ESCAPE '\\' OR i.gist LIKE ? ESCAPE '\\' OR i.tags LIKE ? ESCAPE '\\')"
             )
-            params.extend([like, like, like, like])
+            params.extend([like, like, like, like, like])
         if clauses:
             where_sql = " WHERE " + " AND ".join(clauses)
 
@@ -574,6 +621,8 @@ class IdeasHandler(BaseHTTPRequestHandler):
         if not title:
             title = raw_text[:40]
         summary = as_text(body.get("summary"), "summary", MAX_SUMMARY_LENGTH)
+        gist = as_text(body.get("gist"), "gist", MAX_GIST_LENGTH)
+        session_refs = normalize_session_refs(body.get("session_refs"))
         tags = normalize_tags(body.get("tags"))
         source = as_text(body.get("source"), "source", MAX_SOURCE_LENGTH)
         source_note = as_text(body.get("source_note"), "source_note", MAX_SOURCE_NOTE_LENGTH)
@@ -585,12 +634,14 @@ class IdeasHandler(BaseHTTPRequestHandler):
         try:
             conn.execute("BEGIN IMMEDIATE")
             cursor = conn.execute(
-                "INSERT INTO ideas (title, raw_text, summary, status, tags, source, source_note,"
-                " rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+                "INSERT INTO ideas (title, raw_text, summary, gist, session_refs, status, tags, source, source_note,"
+                " rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
                 (
                     title,
                     raw_text,
                     summary,
+                    gist,
+                    json.dumps(session_refs, ensure_ascii=False),
                     status,
                     json.dumps(tags, ensure_ascii=False),
                     source,
@@ -618,6 +669,10 @@ class IdeasHandler(BaseHTTPRequestHandler):
             fields["raw_text"] = as_text(body.get("raw_text"), "raw_text", MAX_RAW_TEXT_LENGTH)
         if "summary" in body:
             fields["summary"] = as_text(body.get("summary"), "summary", MAX_SUMMARY_LENGTH)
+        if "gist" in body:
+            fields["gist"] = as_text(body.get("gist"), "gist", MAX_GIST_LENGTH)
+        if "session_refs" in body:
+            fields["session_refs"] = json.dumps(normalize_session_refs(body.get("session_refs")), ensure_ascii=False)
         if "status" in body:
             fields["status"] = normalize_status(body.get("status"))
         if "tags" in body:

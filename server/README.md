@@ -15,7 +15,8 @@
 
 在仓库根目录（`compose.yaml` 所在处）：
 
-1. **改 token**：编辑 `compose.yaml`，把 `IDEAS_API_TOKEN` 的示例值换成你自己的随机长串（建议 ≥ 16 位）。
+1. **设置 token**：生成随机长串（建议 ≥ 32 位，如 `openssl rand -hex 24`）并通过环境变量传给 compose：
+   `export IDEAS_API_TOKEN="$(openssl rand -hex 24)"`。未设置时 compose 会直接报错，不会用示例值启动。
 2. **起服务**：
 
    ```bash

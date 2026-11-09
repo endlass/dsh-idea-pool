@@ -10,14 +10,14 @@
 | 运行环境 | DSH 桌面版或 web 版均可（插件装在某个 profile 里） |
 | Node.js | 只有从源码开发/构建时需要（`>=20`）；安装现成插件不需要 |
 
-## 方式一：从 npm 安装（发布后可用）
+## 方式一：从 npm 安装
 
-在 DSH 里打开「插件」页 → 添加插件 → 输入包名 `dsh-idea-pool`。
+在 DSH 里打开「插件」页 → 添加插件 → 输入包名 `dsh-idea-pool@0.3.1`。
 
 或命令行（把 `desktop` 换成你实际使用的 profile）：
 
 ```bash
-dsh plugin --profile desktop add dsh-idea-pool
+dsh plugin --profile desktop add dsh-idea-pool@0.3.1
 ```
 
 ## 方式二：从 tgz / 本地源码目录安装

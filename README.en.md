@@ -12,6 +12,7 @@
   <img alt="DeepSeek Harness 0.2.x" src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-111?style=flat-square"></a>
   <img alt="version 0.3.1" src="https://img.shields.io/badge/version-0.3.1-111?style=flat-square">
+  <a href="https://www.npmjs.com/package/dsh-idea-pool"><img alt="npm" src="https://img.shields.io/npm/v/dsh-idea-pool?style=flat-square"></a>
 </p>
 
 ## Why
@@ -51,11 +52,13 @@ Requires DeepSeek Harness `0.2.2-rc.1` or newer within `0.2.x`. Full steps and t
 
 ### Option 1: npm package / plugin page
 
-Once published to npm, open DSH → Plugins → Add plugin → enter `dsh-idea-pool`; or:
+Open DSH → Plugins → Add plugin → enter `dsh-idea-pool@0.3.1`; or:
 
 ```bash
-dsh plugin --profile desktop add dsh-idea-pool
+dsh plugin --profile desktop add dsh-idea-pool@0.3.1
 ```
+
+npm package page: https://www.npmjs.com/package/dsh-idea-pool
 
 ### Option 2: local source / tgz
 

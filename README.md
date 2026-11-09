@@ -12,6 +12,7 @@
   <img alt="DeepSeek Harness 0.2.x" src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-111?style=flat-square"></a>
   <img alt="version 0.3.1" src="https://img.shields.io/badge/version-0.3.1-111?style=flat-square">
+  <a href="https://www.npmjs.com/package/dsh-idea-pool"><img alt="npm" src="https://img.shields.io/npm/v/dsh-idea-pool?style=flat-square"></a>
 </p>
 
 ## 为什么做这个
@@ -51,11 +52,13 @@
 
 ### 方式一：npm 包 / 插件页
 
-发布到 npm 后，在 DSH 打开「插件」页 → 添加插件 → 输入包名 `dsh-idea-pool`；或：
+在 DSH 打开「插件」页 → 添加插件 → 输入包名 `dsh-idea-pool@0.3.1`；或：
 
 ```bash
-dsh plugin --profile desktop add dsh-idea-pool
+dsh plugin --profile desktop add dsh-idea-pool@0.3.1
 ```
+
+npm 包页：https://www.npmjs.com/package/dsh-idea-pool
 
 ### 方式二：本地源码 / tgz
 

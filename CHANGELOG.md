@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — published
+
+- Published to npm as `dsh-idea-pool@0.3.1` (`latest`).
+
 ## Unreleased — 开源就绪
 
 ### 变更

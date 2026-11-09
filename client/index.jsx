@@ -945,6 +945,7 @@ function DetailPane({ narrow }) {
   const detailLoading = useStore(s => s.detailLoading)
   const detailError = useStore(s => s.detailError)
   const mode = useStore(s => s.mode)
+  const device = useStore(s => s.device)
   const [editing, setEditing] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [addingUpdate, setAddingUpdate] = React.useState(false)
@@ -1057,12 +1058,41 @@ function DetailPane({ narrow }) {
   const promptLabel = (idea.status === 'pool' && updates.length === 0) ? t('复制展开提示词') : t('复制接力提示词')
   const copyExpand = () => copyText(expandInstruction(idea), t('已复制提示词，可粘贴到对话继续'))
   const advancePrompt = `${expandInstruction(idea)}\n\n（本次从灵感池 ${no} 一键推进；完成后回填进展与产出。）`
+  const autoBindSession = (beforeIds, attempt = 0) => {
+    const sessions = clientEnv.sessions
+    const snapshot = sessions && sessions.list && typeof sessions.list.getSnapshot === 'function' ? sessions.list.getSnapshot() : null
+    const ids = Array.isArray(snapshot && snapshot.ids) ? snapshot.ids : []
+    const fresh = ids.filter(id => !beforeIds.includes(id))
+    // 新会话唯一时直接绑定；宿主复用了唯一一个空白会话时也绑定它。
+    const targetId = fresh.length === 1 ? fresh[0] : ids.length === 1 ? ids[0] : null
+    if (targetId) {
+      const sessionId = targetId
+      const summary = (snapshot.byId && snapshot.byId[sessionId]) || {}
+      const refs = Array.isArray(idea.session_refs) ? idea.session_refs : []
+      if (refs.some(ref => ref.session_id === sessionId)) return
+      const ref = {
+        session_id: sessionId,
+        title: String(summary.title || summary.name || t('一键推进会话')).slice(0, 200),
+        device: device || '',
+        bound_at: new Date().toISOString(),
+        reason: 'advance',
+      }
+      updateIdea(no, { session_refs: [...refs, ref] }, t('已自动关联新会话'))
+      return
+    }
+    // 会话列表可能晚一拍；最多等约 3.6 秒，且只在目标唯一时绑定，避免绑错
+    if (attempt < 9) window.setTimeout(() => autoBindSession(beforeIds, attempt + 1), 400)
+  }
   const advance = () => {
     const workspace = clientEnv.uiWorkspace
     if (workspace && typeof workspace.startSession === 'function') {
       try {
+        const sessions = clientEnv.sessions
+        const snapshot = sessions && sessions.list && typeof sessions.list.getSnapshot === 'function' ? sessions.list.getSnapshot() : null
+        const beforeIds = Array.isArray(snapshot && snapshot.ids) ? [...snapshot.ids] : []
         workspace.startSession(undefined, { prompt: advancePrompt, whenDraftExists: 'append' })
-        toast(t('已打开新会话并预填推进提示词；发送后可回来「查找相关会话」绑定。'))
+        toast(t('已打开新会话并预填推进提示词；若只新增了一个会话，会自动关联。'))
+        window.setTimeout(() => autoBindSession(beforeIds), 600)
         return
       } catch (err) {
         // 宿主不支持时退回复制，不阻断

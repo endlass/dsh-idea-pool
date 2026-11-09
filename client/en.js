@@ -270,4 +270,8 @@ export const EN = {
   '会话搜索失败，显示最近会话。': 'Session search failed; showing recent sessions.',
   '会话搜索不可用，显示最近会话。': 'Session search is unavailable; showing recent sessions.',
   '没有可用的会话列表。': 'No session list is available.',
+  '一键推进会話': 'Advance session',
+  '一键推进会话': 'Advance session',
+  '已自动关联新会话': 'New session linked automatically',
+  '已打开新会话并预填推进提示词；若只新增了一个会话，会自动关联。': 'Opened a new session with the prompt prefilled; if exactly one new session appears, it will be linked automatically.',
 }

@@ -1,36 +1,54 @@
-# 发布清单（v0.2.1）
+# 发布清单（维护者用）
 
-## 已完成
+面向仓库维护者；普通安装见 [`INSTALL.md`](../INSTALL.md) 或 [`README.md`](../README.md)。
 
-- [x] 版本 0.2.1；CHANGELOG / README / INSTALL / 截图（`docs/assets/`）
-- [x] 兼容审计 PASS（`docs/compat-audit-20261108.md`）
-- [x] `npm test` 113 用例通过；`npm run build` 通过
-- [x] `npm pack` 产物 `dist/dsh-idea-pool-0.2.1.tgz`；在干净 `DSH_HOME` 用 tgz 安装并走通入池
-- [x] 自建后端 `server/`：21 个 unittest 通过；与插件 CloudEngine 互通
-- [x] 自建 Git：`git@www.zhaoningyuan.com:repos/dsh-idea-pool.git`（main + tags）
-- [x] 发布附件：`dist/dsh-idea-pool-0.2.1-with-install-guide.zip`
+## 1. 版本与变更
 
-## 待人工完成（需要账号/环境）
+- [ ] 更新 `package.json` 的 `version`（语义化版本）
+- [ ] 更新 `CHANGELOG.md`（新增 / 变更 / 修复 / 契约）
+- [ ] 契约有变化时同步更新 `CONTRACT.md`，并确认 Host / Client 两边实现一致
 
-1. **创建 GitHub 仓库并推送**（当前 SSH 已认证为 `endlass`，但没有创建仓库的 API 权限）：
-   ```bash
-   # 先在 GitHub 网页创建空仓库 endlass/dsh-idea-pool（不要初始化 README）
-   cd ~/Desktop/dsh/dsh-idea-pool
-   git remote add github git@github.com:endlass/dsh-idea-pool.git
-   git push github main --tags
-   ```
-2. **发布 npm**（本机未登录 npm；包名 `dsh-idea-pool` 当前未被占用）：
-   ```bash
-   npm login
-   npm publish --access public
-   ```
-3. **GitHub Release**：用 `dist/dsh-idea-pool-0.2.1.tgz` 与 `dist/dsh-idea-pool-0.2.1-with-install-guide.zip` 建 v0.2.1 Release。
-4. **可选：Docker 真机验证**（本机无 Docker）：
-   ```bash
-   docker compose config
-   docker compose up -d --build
-   curl -H "X-API-Key: <你在 compose.yaml 里设的 token>" http://127.0.0.1:8794/api/health
-   ```
-   若 Linux bind mount 权限报错：`mkdir -p data && sudo chown -R 10001:10001 data`。
-5. **可选**：GitHub 仓库建好后，把 README 里的相对图片换成 raw 绝对地址（npm 页面渲染更稳）；
-   或在 README 顶部加 GitHub 链接。
+## 2. 本地验证
+
+```bash
+npm ci
+npm test              # node:test，当前 126 个用例
+npm run build         # client/ → client.js（esbuild）
+npm pack --dry-run    # 检查清单与体积；prepack 会自动构建
+```
+
+- [ ] `git diff --exit-code -- client.js` 为空（构建产物已提交且可复现）
+- [ ] 用 `scripts/dev-sandbox.sh` 隔离 `DSH_HOME` 起 web 版，走查一遍本机模式（录入 / 详情 / 进展 / 撤销 / 设置 / 导出）
+- [ ] 云端模式：自建 `server/` 或自己的 ideas-api 上跑测试连接、增删改、409 冲突
+- [ ] 本机模式零配置可用（`cloud.base` 默认空，不依赖任何第三方地址）
+
+## 3. 提交与标签
+
+```bash
+git add -A
+git commit -m "chore: release vX.Y.Z"
+git tag vX.Y.Z
+```
+
+- [ ] 推送仓库（`git push <remote> main --tags`）
+- [ ] 确认仓库内没有个人路径、私有主机、密钥、token、飞书 appId 等敏感信息
+
+## 4. npm 发布（可选，需维护者账号）
+
+```bash
+npm login
+npm publish --access public   # package.json 已带 publishConfig.access=public
+```
+
+- [ ] 发布后从 npm 安装到干净 `DSH_HOME` 验证一次：
+      `dsh plugin --profile desktop add dsh-idea-pool`
+- [ ] 确认 npm 页面 README / LICENSE / 截图渲染正常
+
+## 5. GitHub Release（可选）
+
+- [ ] 用 `npm pack` 产出的 `.tgz` 作为 Release 附件
+- [ ] Release notes 引用 `CHANGELOG.md` 对应段落
+
+## 6. 不要提交的东西
+
+`node_modules/`、`*.tgz`、`dist/`、`data/`、`server/data/`、`.DS_Store`、任何真实 token / API Key / 个人域名与主机地址。

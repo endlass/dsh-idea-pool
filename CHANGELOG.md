@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 开源就绪
+
+### 变更
+- 去个人化：`CLOUD_DEFAULT_BASE` 改为空，不再预置任何第三方云端地址；设置里的云端基址只给 `https://ideas.example.com/ideas/api` 作占位示例，本机模式保持零配置可用。
+- 云端「复制链接」改为约定式：仅当基址形如 `<站点>/ideas/api` 时复制网站深链，否则复制引用文本，不再硬编码个人站点。
+- `scripts/import-cloud.mjs` 的 `--base` 改为必填（或 `IDEAS_API_BASE`），密钥来源改为 `IDEAS_API_KEY` / `--key-file` / `$DSH_HOME/ideas-api.key`；`--site` 可选，用于补全云端相对链接。
+- 默认设备名、测试 fixture、自建 server 的监听地址改用通用 `localhost`；移除个人备份/部署记录与一次性回填脚本。
+- 文档：README 中英双版（`README.md` / `README.en.md`）互链并重写为外部用户视角；`INSTALL.md`、`CONTRACT.md`、`docs/ideas-api-v2.md`、`docs/release-checklist.md` 按 v0.3.1 实现校正。
+- 工程化：新增 `SECURITY.md`（数据边界与本机/云端模式说明）与 GitHub Actions CI（Node 22/24：`npm ci`、`npm test`、`npm run build`、`npm pack --dry-run`）；`package.json` 补 `publishConfig.access=public`、`author`，`files` 纳入 SECURITY/CONTRACT/英文 README/server/deploy/compose 等发布内容。
+
+
 ## v0.3.1 — 2026-11-09
 
 「看得见本机落后云端多少，且明确只是单向」。

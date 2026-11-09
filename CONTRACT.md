@@ -1,11 +1,12 @@
-# dsh-idea-pool 契约（v0.1 / P1 本机模式）
+# dsh-idea-pool 契约（v0.3.1）
 
 本文件是 Host 与 Client 两个半片的唯一接口约定。改动先改这里，两边同步。
+下面的描述以实现为准（v0.3.1，本机 / 云端双模已实现）；契约与实现不一致时，先修实现或先改本文件，不要两套口径并存。
 
-- 目标 DSH：0.2.2-rc.1（`engines.dsh: >=0.2.2-rc.1 <0.3.0`）
-- 本阶段只做**本机模式**（数据在 `$DSH_HOME/idea-pool/`），云端模式留接口不实现。
+- 目标 DSH：`0.2.2-rc.1` 及以上的 `0.2.x`（`engines.dsh: >=0.2.2-rc.1 <0.3.0`）。
+- 两种运行模式：本机模式（默认，数据在 `$DSH_HOME/idea-pool/`）与云端模式（用户自备 ideas-api v2 后端）。
 - 包名 / 插件 id / slot key：`dsh-idea-pool` / `idea-pool`。
-- 参考实现：`/Users/zhaoxingchen/.dsh/profiles/desktop/node_modules/dsh-media-desk/`（Host 路由、本机 store、client 注册）与 `/tmp/media-desk-repo/client/`（客户端源码）。不要照抄它的五页面，只借工程写法。
+- 不预置任何第三方云端地址：云端基址由用户显式配置（`CLOUD_DEFAULT_BASE = ''`）。
 
 ## 1. 目录与文件所有权
 
@@ -46,11 +47,13 @@ Host 代码**只 import Node 内置模块**，不 import 任何 `@deepseek-ai/*`
       "idea_no": "IDEA-001",      // 本机独立编号，IDEA-001 起
       "title": "一句话标题",       // 必填；缺省时用 raw_text 前 40 字符
       "raw_text": "原文逐字",      // 必填；**不做 trim 以外的任何改写**（外层首尾空白可 trim）
-      "summary": "",              // 可空
+      "summary": "",              // 可空，详细摘要
+      "gist": "",                 // 可空，一句话摘要（<=200 字，v0.3）
       "status": "pool",           // pool | active | parked | done
       "tags": ["DSH"],            // string[]，去重，<=24 个，每个 <=40 字符
       "source": "dsh-mac",        // 默认 settings.device
       "source_note": "",
+      "session_refs": [],         // v0.3：关联的 DSH 会话，每项 {session_id,title,device,bound_at,reason}
       "created_at": "2026-11-08T21:00:00.000Z",
       "updated_at": "2026-11-08T21:00:00.000Z",
       "rev": 1,                   // 每次字段级修改 +1（为将来云端冲突检测预留）
@@ -97,6 +100,10 @@ Client 用相对路径 `idea-pool/...` 请求（同源）。所有请求先过 `
 | GET | `/idea-pool/api/settings` | 公开设置：`{ ok, settings }` |
 | POST | `/idea-pool/api/settings` | v0.1 只接受 `{ device? }` → `{ ok, settings }` |
 | GET | `/idea-pool/api/export` | 导出：`{ ok, data:{ schema, device, exported_at, ideas } }`（可直接下载 JSON） |
+| POST | `/idea-pool/api/cloud/test` | body `{ base?, apiKey? }`；用请求覆盖值或已存配置拉云端健康检查 → `{ ok, base, count, latencyMs }`；失败 502 |
+| POST | `/idea-pool/api/cloud/import-local` | 用已存云端配置全量拉取并按 `idea_no` 合并到本机 → `{ ok, imported, updated, total }`；未配置 Key 400 |
+| GET | `/idea-pool/api/continuity` | 双模连续性状态，**永远 200**，云端不可达/未配置 Key 只降级（见 §12） |
+| POST | `/idea-pool/api/continuity/refresh` | 从云端**单向**增量刷新到本机（见 §12） |
 
 摘要 `idea` 字段：`idea_no,title,summary,status,tags,source,created_at,updated_at,n_updates,n_links`。详情 `idea` 额外带 `raw_text,source_note,rev`；`updates`/`links` 数组按 created_at/id 升序。
 
@@ -116,11 +123,18 @@ URL 中的 `{idea_no}` 一律规范成大写。
 `$DSH_HOME/idea-pool/settings.json`，权限 600，存在时也是 600：
 
 ```jsonc
-{ "device": "dsh-mac", "mode": "local", "cloud": { "base": "", "hasKey": false } }
+{
+  "device": "dsh-mac",
+  "mode": "local",                         // local | cloud
+  "cloud": {
+    "base": "",                            // 用户显式填写的 ideas-api 基址，默认空
+    "apiKey": ""                           // 只落盘，永不回传浏览器/工具
+  }
+}
 ```
 
-- v0.1 `mode` 恒为 `local`；`cloud` 仅占位，不读密钥。
-- `publicSettings()` 永远不返回密钥；只返回 `hasKey` 布尔。
+- `POST /api/settings` 接受 `{ device?, mode?, cloud?: { base?, apiKey?, clearKey? } }`；`apiKey` 空串/缺省表示不改，`clearKey:true` 清空。
+- `publicSettings()` 永远不返回密钥；只返回 `hasKey` 布尔与末四位 `keyHint`；`storagePath` 由服务按当前模式补上。
 
 ## 5. Agent 工具
 
@@ -136,6 +150,7 @@ URL 中的 `{idea_no}` 一律规范成大写。
     "title": { "type": "string" },
     "raw_text": { "type": "string" },
     "summary": { "type": "string" },
+    "gist": { "type": "string" },
     "tags": { "type": "array", "items": { "type": "string" } },
     "content": { "type": "string" },
     "url": { "type": "string" },
@@ -206,7 +221,7 @@ ctx.effect(() => {
 Host：
 
 ```bash
-cd ~/Desktop/dsh/dsh-idea-pool
+cd dsh-idea-pool
 npm test            # node --test test/*.test.mjs
 node --check index.js && node --check lib/*.mjs
 ```
@@ -219,10 +234,10 @@ npm run build && node --check client.js
 
 联调（Lead 做）：隔离 `DSH_HOME` 起 web 版，Playwright 打开带 token 的 URL，检查侧栏入口、录一条、改状态、加进展、刷新后还在、撤销；截图自检。
 
-## 10. 非目标（本阶段）
+## 10. 非目标
 
-- 云端模式、同步、导入（export 之外的迁移）、附件、多用户、权限、认领机制、移动端原生。
-- 不修改现有 `ideas-api`、网站、CLI 与 preset。
+- 双向同步（只做本机 ← 云端单向刷新）、附件、多用户/账号体系、权限与认领机制、移动端原生。
+- 不修改用户自己的 ideas-api / 网站 / CLI / preset。
 
 ## 11. v0.2 云端模式增量（2026-11-08）
 
@@ -237,13 +252,13 @@ v0.1 的「只做本机」作废；以下为 P2 增量，未提到的地方保�
   "device": "dsh-mac",
   "mode": "local",                       // local | cloud
   "cloud": {
-    "base": "https://www.zhaoningyuan.com/ideas/api",
+    "base": "",                          // 用户显式填写，默认空
     "apiKey": ""                         // 只落盘，永不回传
   }
 }
 ```
 
-- `CLOUD_DEFAULT_BASE = https://www.zhaoningyuan.com/ideas/api`；base 只接受 http(s)，去尾斜杠。
+- `CLOUD_DEFAULT_BASE = ''`（不预置第三方后端）；base 只接受 http(s)，去尾斜杠。云端操作前必须已配置非空 base。
 - `GET /api/settings` 返回：`{ ok, settings: { device, mode, storagePath, cloud: { base, hasKey, keyHint } } }`。keyHint 为末四位；永不返回 apiKey。
 - `POST /api/settings` 接受 `{ device?, mode?, cloud?: { base?, apiKey?, clearKey? } }`：
   - mode 只允许 local / cloud；
@@ -288,7 +303,7 @@ v0.1 的「只做本机」作废；以下为 P2 增量，未提到的地方保�
   - 云端配置：base URL、API key（password；已保存时占位「已保存，末四位 xxxx」，留空表示不改）、「测试连接」按钮（显示条数与延迟）、「保存」；
   - 「从云端导入到本机」按钮（调用 11.2，成功 toast 导入条数）；
   - 本机模式继续显示存储路径与导出 JSON。
-- 详情「复制链接」：本机模式复制本机引用文本；云端模式复制 `https://www.zhaoningyuan.com/ideas/#IDEA-xxx`（与网站一致）。
+- 详情「复制链接」：云端基址形如 `<站点>/ideas/api` 时复制 `<站点>/ideas/#IDEA-xxx`；其他形态（自建纯 API、本机模式）复制引用文本，不编造不存在的链接。
 - 云端 409/401/502 错误用 error toast 展示；409 后自动刷新当前列表/详情。
 
 ### 11.6 服务端（ideas-api）增量（向后兼容）
@@ -314,7 +329,7 @@ v0.1 的「只做本机」作废；以下为 P2 增量，未提到的地方保�
   "updated_at": "...",
   "last_sync": {
     "at": "2026-11-09T14:30:00.000Z",   // 本机时间（ISO 8601）
-    "base": "https://www.zhaoningyuan.com/ideas/api",
+    "base": "https://ideas.example.com/ideas/api",
     "cloud_total": 25,                  // 本次拉到的云端想法条数
     "imported": 0,                      // 本次新增的想法条数
     "updated": 4,                       // 本次合并的已有想法条数

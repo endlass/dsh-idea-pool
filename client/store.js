@@ -36,6 +36,11 @@ let snapshot = {
   detailError: null,
   settings: null,
   settingsLoading: false,
+  // 双模连续性（契约 §12）：本机账本 vs 云端账本的差异状态；云端不可达时也不阻塞列表
+  continuity: null,
+  continuityLoading: false,
+  continuityRefreshing: false,
+  continuityAt: 0,
   toast: null,
 }
 
@@ -239,6 +244,8 @@ export function boot() {
     try {
       await Promise.all([fetchState(), fetchList()])
       set({ booted: true, loading: false })
+      // 本机模式下静默查一次云端差异（不阻塞列表；失败已在端点里降级，不弹 toast）
+      if (snapshot.mode === 'local') fetchContinuity().catch(() => {})
     } catch (err) {
       set({ loading: false, error: err.message })
     }
@@ -257,6 +264,7 @@ export async function refresh({ quiet = false } = {}) {
     await refreshSelected()
     // 首屏失败（比如云端没配好）后修好设置再刷新，也要能回到正常界面
     set({ booted: true, loading: false, error: null })
+    if (snapshot.mode === 'local') fetchContinuity({ force: true }).catch(() => {})
     if (!quiet) toast(t('已刷新'))
   } catch (err) {
     report(err)
@@ -487,8 +495,8 @@ export async function saveSettings(patch) {
     const previousMode = snapshot.mode
     set({ settings })
     if (settings && settings.mode && settings.mode !== previousMode) {
-      // 切引擎：先清掉旧引擎的列表/选中，避免旧数据一闪而过
-      set({ ideas: [], selectedNo: null, detail: null, detailError: null, canUndo: false })
+      // 切引擎：先清掉旧引擎的列表/选中与旧连续性状态，避免旧数据一闪而过
+      set({ ideas: [], selectedNo: null, detail: null, detailError: null, canUndo: false, continuity: null, continuityAt: 0 })
     }
     toast(t('设置已保存'))
     try {
@@ -497,6 +505,7 @@ export async function saveSettings(patch) {
       await refreshSelected()
       // 模式从坏配置修好时，boot() 可能曾经失败过：这里直接标记就绪
       set({ booted: true, loading: false, error: null })
+      if (snapshot.mode === 'local') fetchContinuity({ force: true }).catch(() => {})
     } catch (err) {
       report(err)
     }
@@ -565,8 +574,71 @@ export async function importCloudToLocal() {
     if (imported || updated) toast(t('已从云端导入 {imported} 条，更新 {updated} 条', { imported, updated }))
     else toast(t('云端没有新的想法可导入'))
     await Promise.allSettled([fetchState(), fetchList(), refreshSelected()])
+    fetchContinuity({ force: true }).catch(() => {})
     return { imported, updated, total }
   } catch (err) {
+    report(err)
+    return null
+  }
+}
+
+/* ---------- 双模连续性（契约 §12） ---------- */
+
+let continuitySeq = 0
+/** 检查结果的本地缓存时长：面板保持打开时不要每次操作都打云端。 */
+const CONTINUITY_CACHE_MS = 60_000
+
+/**
+ * 拉本机 vs 云端的连续性状态（GET /api/continuity）。
+ * 端点自身对「未配置 Key / 云端不可达」做了 200 降级，这里失败（500）也只记状态、不弹 toast。
+ * @param {{force?: boolean}} [options] - force=true 绕过缓存（手动刷新/设置里重查）。
+ * @returns {Promise<object|null>}
+ */
+export async function fetchContinuity({ force = false } = {}) {
+  if (!force && snapshot.continuity && Date.now() - snapshot.continuityAt < CONTINUITY_CACHE_MS) {
+    return snapshot.continuity
+  }
+  const seq = ++continuitySeq
+  set({ continuityLoading: true })
+  try {
+    const data = await request('api/continuity')
+    if (seq !== continuitySeq) return data
+    set({ continuity: data, continuityLoading: false, continuityAt: Date.now() })
+    return data
+  } catch (err) {
+    if (seq === continuitySeq) set({ continuityLoading: false })
+    return null
+  }
+}
+
+/**
+ * 从云端增量刷新本机账本（POST /api/continuity/refresh）。
+ * 单向：只把云端新内容合并到本机，本机内容不回写云端。
+ * @returns {Promise<object|null>}
+ */
+export async function refreshFromCloud() {
+  if (snapshot.continuityRefreshing) return null
+  set({ continuityRefreshing: true })
+  try {
+    const data = await request('api/continuity/refresh', jsonInit('POST', {}))
+    set({ continuityRefreshing: false })
+    const addedUpdates = toCount(data.added_updates)
+    const addedLinks = toCount(data.added_links)
+    const imported = toCount(data.imported)
+    if (addedUpdates || addedLinks || imported) {
+      toast(t('已从云端刷新：+{updates} 条进展、+{links} 个产出、+{ideas} 条想法', {
+        updates: addedUpdates,
+        links: addedLinks,
+        ideas: imported,
+      }))
+    } else {
+      toast(t('本机已是最新（云端 {n} 条）', { n: toCount(data.cloud_total) }))
+    }
+    await Promise.allSettled([fetchState(), fetchList(), refreshSelected()])
+    await fetchContinuity({ force: true })
+    return data
+  } catch (err) {
+    set({ continuityRefreshing: false })
     report(err)
     return null
   }

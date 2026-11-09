@@ -173,6 +173,41 @@
 .ip-tab-count { font-size: 11.5px; color: var(--ip-ink3); font-variant-numeric: tabular-nums; line-height: 1; padding: 2px 5px; border-radius: 999px; background: var(--ip-hover); }
 .ip-tab.is-on .ip-tab-count { color: var(--ip-ink2); background: color-mix(in srgb, var(--ip-card) 70%, transparent); }
 
+/* ---------- 双模连续性提示条（本机模式，契约 §12） ---------- */
+.ip-continuity {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 16px 8px;
+  padding: 5px 10px;
+  min-height: 30px;
+  border-radius: var(--ip-r-sm);
+  border: 1px solid var(--ip-line);
+  background: color-mix(in srgb, var(--ip-hover) 55%, transparent);
+  color: var(--ip-ink3);
+  font-size: 12px;
+  line-height: 18px;
+}
+.ip-continuity-icon { display: inline-flex; flex: none; color: var(--ip-ink4); }
+.ip-continuity-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-continuity-spacer { flex: 1; min-width: 4px; }
+.ip-continuity .ip-btn { flex: none; }
+.ip-continuity.is-drift {
+  border-color: color-mix(in srgb, var(--ip-business) 34%, var(--ip-line));
+  background: color-mix(in srgb, var(--ip-business) 7%, transparent);
+  color: var(--ip-ink2);
+}
+.ip-continuity.is-drift .ip-continuity-icon { color: var(--ip-business); }
+.ip-continuity.is-offline {
+  border-color: color-mix(in srgb, var(--ip-warn) 30%, var(--ip-line));
+  background: color-mix(in srgb, var(--ip-warn) 6%, transparent);
+  color: var(--ip-ink2);
+}
+.ip-continuity.is-offline .ip-continuity-icon { color: var(--ip-warn); }
+.ip-continuity.is-ok .ip-continuity-icon { color: var(--ip-success); }
+.ip-continuity.is-muted .ip-continuity-icon { color: var(--ip-ink4); }
+
 /* ---------- 主体：宽屏两栏 / 窄屏下钻 ---------- */
 .ip-body { flex: 1; min-height: 0; display: flex; border-top: 1px solid var(--ip-line); }
 .ip-list-pane { flex: 0 0 clamp(304px, 37%, 408px); min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--ip-line); }
@@ -515,6 +550,8 @@
 .ip-root.is-narrow .ip-search { order: 5; width: 100%; }
 .ip-root.is-narrow .ip-capture { margin: 2px 12px 8px; }
 .ip-root.is-narrow .ip-tabs { padding: 0 10px 8px; }
+.ip-root.is-narrow .ip-continuity { margin: 0 10px 8px; }
+.ip-root.is-narrow .ip-continuity-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ip-root.is-narrow .ip-list { padding: 10px 12px 16px; }
 .ip-root.is-narrow .ip-detail-head { padding: 10px 14px 10px; }
 .ip-root.is-narrow .ip-detail-body { padding: 0 14px 22px; }

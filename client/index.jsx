@@ -12,9 +12,11 @@ import {
   closeDetail,
   deleteIdea,
   exportJson,
+  fetchContinuity,
   importCloudToLocal,
   loadSettings,
   refresh as refreshStore,
+  refreshFromCloud,
   retryBoot,
   saveSettings,
   selectIdea,
@@ -113,6 +115,22 @@ function parseTags(value) {
 
 function countText(count, oneKey, otherKey) {
   return t(count === 1 ? oneKey : otherKey, { n: count })
+}
+
+/** 云端差异摘要 → 一句人话（+2 条想法、+16 条进展、+6 个产出）。 */
+function driftText(drift) {
+  if (!drift) return ''
+  const parts = []
+  if (drift.missing_ideas) parts.push(t('+{n} 条想法', { n: drift.missing_ideas }))
+  if (drift.missing_updates) parts.push(t('+{n} 条进展', { n: drift.missing_updates }))
+  if (drift.missing_links) parts.push(t('+{n} 个产出', { n: drift.missing_links }))
+  if (parts.length === 0 && drift.changed_ideas) return t('{n} 条想法有云端更新', { n: drift.changed_ideas })
+  return parts.join('、')
+}
+
+/** 上次刷新时间的紧凑展示；没有则空串。 */
+function lastSyncTime(lastSync) {
+  return lastSync && lastSync.at ? formatShortTime(lastSync.at) : ''
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -405,6 +423,71 @@ function StatusTabs() {
         ) : null}
       </div>
     </nav>
+  )
+}
+
+/* ---------- 双模连续性提示条（本机模式，契约 §12） ---------- */
+
+const CONTINUITY_NOTE = '单向刷新：只把云端新内容合并到本机；本机的新内容不会回写云端，不是双向同步。'
+
+function ContinuityBar({ onOpenSettings }) {
+  const continuity = useStore(s => s.continuity)
+  const loading = useStore(s => s.continuityLoading)
+  const refreshing = useStore(s => s.continuityRefreshing)
+  const drift = continuity && continuity.drift
+  const cloud = (continuity && continuity.cloud) || {}
+  const lastSync = continuity && continuity.lastSync
+  if (!continuity || continuity.applicable === false) return null
+  // 从未配置过云端、也从没刷新过：不占位（设置里可见），避免纯本机用户被提示打扰
+  if (!cloud.configured && !lastSync) return null
+  const since = lastSyncTime(lastSync)
+
+  let tone = ''
+  let icon = 'cloud'
+  let text = ''
+  if (!cloud.configured) {
+    tone = 'is-muted'
+    icon = 'alert'
+    text = t('本机账本 · 未配置云端 Key，暂不比较云端差异')
+  } else if (cloud.reachable === false) {
+    tone = 'is-offline'
+    icon = 'alert'
+    text = t('本机账本 · 云端暂不可达：{error}（本机功能不受影响）', { error: cloud.error || t('连接失败') })
+  } else if (cloud.reachable && drift && drift.behind) {
+    tone = 'is-drift'
+    icon = 'cloud'
+    text = [t('云端有新内容：{detail}', { detail: driftText(drift) }), since ? t('上次刷新 {time}', { time: since }) : t('从未刷新')]
+      .filter(Boolean)
+      .join(' · ')
+  } else if (cloud.reachable && drift) {
+    tone = 'is-ok'
+    icon = 'check'
+    text = [t('本机账本与云端一致（云端 {n} 条）', { n: drift.cloud_total }), since ? t('上次刷新 {time}', { time: since }) : '']
+      .filter(Boolean)
+      .join(' · ')
+  } else {
+    // 检查中且还没结果：不占位，避免闪烁
+    return null
+  }
+  return (
+    <div className={`ip-continuity ${tone}`} title={t(CONTINUITY_NOTE)} role="status">
+      <span className="ip-continuity-icon"><Icon name={icon} size={13} /></span>
+      <span className="ip-continuity-text">{text}</span>
+      <span className="ip-continuity-spacer" />
+      {tone === 'is-drift' ? (
+        <Button size="sm" variant="primary" icon="download" onClick={() => refreshFromCloud()} disabled={refreshing}>
+          {refreshing ? t('刷新中…') : t('从云端刷新')}
+        </Button>
+      ) : null}
+      {tone === 'is-offline' ? (
+        <Button size="sm" variant="ghost" icon="refresh" onClick={() => fetchContinuity({ force: true })} disabled={loading}>
+          {loading ? t('检查中…') : t('重试')}
+        </Button>
+      ) : null}
+      {tone === 'is-muted' ? (
+        <Button size="sm" variant="ghost" icon="settings" onClick={onOpenSettings}>{t('设置')}</Button>
+      ) : null}
+    </div>
   )
 }
 
@@ -1279,6 +1362,87 @@ function DetailPane({ narrow }) {
   )
 }
 
+/* ---------- 设置里的「云端连续性」区块（契约 §12） ---------- */
+
+function ContinuitySettings() {
+  const continuity = useStore(s => s.continuity)
+  const loading = useStore(s => s.continuityLoading)
+  const refreshing = useStore(s => s.continuityRefreshing)
+  const cloud = (continuity && continuity.cloud) || {}
+  const drift = continuity && continuity.drift
+  const lastSync = continuity && continuity.lastSync
+  const configured = Boolean(cloud.configured)
+  const applicable = !continuity || continuity.applicable !== false
+
+  let stateText
+  if (!continuity && loading) stateText = t('检查中…')
+  else if (!applicable) stateText = t('云端模式：数据在云端，本机账本不参与比较')
+  else if (!configured) stateText = t('未配置云端 Key')
+  else if (cloud.reachable === false) stateText = t('云端暂不可达：{error}', { error: cloud.error || t('连接失败') })
+  else if (cloud.reachable) stateText = t('云端可达 · 共 {n} 条', { n: drift ? drift.cloud_total : 0 })
+  else stateText = t('尚未检查')
+
+  let diffText
+  if (!applicable) diffText = t('切换回本机模式后，可在这里比较本机账本与云端的差异')
+  else if (!configured) diffText = t('未配置 Key，无法比较云端差异；本机功能不受影响')
+  else if (!drift) diffText = loading ? t('检查中…') : t('云端差异暂不可用')
+  else if (drift.behind) diffText = t('落后云端：{detail}', { detail: driftText(drift) })
+  else if (drift.local_only_ideas) diffText = t('云端没有新内容；本机独有 {n} 条想法会保留', { n: drift.local_only_ideas })
+  else diffText = t('与云端一致')
+
+  return (
+    <>
+      <div className="ip-dialog-row">
+        <span className="ip-dialog-row-label">{t('云端状态')}</span>
+        <div className="ip-dialog-row-main">
+          <p className="ip-dialog-note">{stateText}</p>
+        </div>
+      </div>
+      <div className="ip-dialog-row">
+        <span className="ip-dialog-row-label">{t('上次刷新')}</span>
+        <div className="ip-dialog-row-main">
+          <p className="ip-dialog-note">
+            {lastSync
+              ? t('{time} · 云端 {n} 条 · 当时新增 {u} 条进展 / {l} 个产出', {
+                  time: formatDateTime(lastSync.at),
+                  n: lastSync.cloud_total,
+                  u: lastSync.added_updates,
+                  l: lastSync.added_links,
+                })
+              : t('从未刷新过')}
+          </p>
+        </div>
+      </div>
+      <div className="ip-dialog-row">
+        <span className="ip-dialog-row-label">{t('差异')}</span>
+        <div className="ip-dialog-row-main">
+          <p className="ip-dialog-note">{diffText}</p>
+        </div>
+      </div>
+      <div className="ip-dialog-row">
+        <span className="ip-dialog-row-label">{t('刷新')}</span>
+        <div className="ip-dialog-row-main">
+          <div className="ip-inline-row">
+            <Button
+              size="sm"
+              icon="download"
+              onClick={() => refreshFromCloud()}
+              disabled={!applicable || !configured || refreshing}
+              title={!configured ? t('先在上面的「连接配置」里保存 API Key，再刷新云端差异。') : undefined}
+            >
+              {refreshing ? t('刷新中…') : t('从云端增量刷新')}
+            </Button>
+            <Button size="sm" variant="ghost" icon="refresh" onClick={() => fetchContinuity({ force: true })} disabled={loading || !applicable}>
+              {loading ? t('检查中…') : t('重新检查')}
+            </Button>
+          </div>
+          <p className="ip-dialog-note">{t(CONTINUITY_NOTE)}</p>
+        </div>
+      </div>
+    </>
+  )
+}
+
 /* ---------- 设置对话框（v0.2：本机 / 云端双模） ---------- */
 
 function normalizeBaseUrl(value) {
@@ -1572,6 +1736,15 @@ function SettingsDialog({ onClose }) {
           </div>
         </section>
 
+        {/* 云端连续性 */}
+        <section className="ip-settings-group">
+          <div className="ip-settings-head">
+            <h3>{t('云端连续性')}</h3>
+            <p>{t('本机账本与云端账本的差异；刷新是单向的，只把云端新内容并进本机。')}</p>
+          </div>
+          <ContinuitySettings />
+        </section>
+
         {/* 高级 */}
         <section className="ip-settings-group">
           <div className="ip-settings-head">
@@ -1606,6 +1779,7 @@ export function App() {
   const loading = useStore(s => s.loading)
   const error = useStore(s => s.error)
   const canUndo = useStore(s => s.canUndo)
+  const mode = useStore(s => s.mode)
   const ideas = useStore(s => s.ideas)
   const status = useStore(s => s.status)
   const query = useStore(s => s.query)
@@ -1674,6 +1848,7 @@ export function App() {
       <TopBar searchRef={searchRef} onOpenSettings={() => setSettingsOpen(true)} />
       {readingDetail ? null : <CaptureBar highlight={highlightCapture} />}
       {booted && !readingDetail ? <StatusTabs /> : null}
+      {booted && !readingDetail && !error && mode === 'local' ? <ContinuityBar onOpenSettings={() => setSettingsOpen(true)} /> : null}
       <div className="ip-body">
         {loading && !booted ? (
           <Spinner label={t('正在读取灵感池…')} />

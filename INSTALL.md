@@ -14,11 +14,11 @@ dsh plugin --profile desktop add dsh-idea-pool
 
 ## 方式二：从 tgz 离线安装
 
-1. 下载 `dsh-idea-pool-0.3.0.tgz`；
+1. 下载 `dsh-idea-pool-0.3.1.tgz`；
 2. 桌面版先完全退出（⌘Q），再执行：
 
 ```bash
-dsh plugin --profile desktop add "file:/绝对路径/dsh-idea-pool-0.3.0.tgz"
+dsh plugin --profile desktop add "file:/绝对路径/dsh-idea-pool-0.3.1.tgz"
 ```
 
 3. 重新打开 DSH，侧栏出现「灵感池」。

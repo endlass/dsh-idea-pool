@@ -298,3 +298,65 @@ v0.1 的「只做本机」作废；以下为 P2 增量，未提到的地方保�
 - `idea_updates` / `idea_links` 增加可空 `client_id text`，各自建 `(idea_id, client_id)` 部分唯一索引；POST 带 client_id 时重复插入返回已存在行（200），并返回最新 `idea`。
 - POST updates/links 成功后把所属 idea 的 `rev = rev + 1`、`updated_at = now()`，响应带最新 idea。
 - 不带 if_rev / client_id 的旧客户端（网站、ideas.py）行为不变。
+
+## 12. v0.3.1 双模连续性（2026-11-09）
+
+本机模式（默认）的数据在 `$DSH_HOME/idea-pool/state.json`，可能是较早从云端导入的快照。v0.3.1 增加「本机账本 vs 云端账本」的差异可见性与**单向**增量刷新。
+
+**边界（必须守住）**：不是双向同步。刷新只把云端新内容合并到本机；本机新增/修改的内容不会回写云端。UI 文案不许暗示「已同步」或「双向同步」。
+
+### 12.1 state.meta.last_sync（可选）
+
+`state.json` 的 `meta` 新增可选字段；旧文件没有该字段也能正常打开（不写 `null`）：
+
+```jsonc
+"meta": {
+  "updated_at": "...",
+  "last_sync": {
+    "at": "2026-11-09T14:30:00.000Z",   // 本机时间（ISO 8601）
+    "base": "https://www.zhaoningyuan.com/ideas/api",
+    "cloud_total": 25,                  // 本次拉到的云端想法条数
+    "imported": 0,                      // 本次新增的想法条数
+    "updated": 4,                       // 本次合并的已有想法条数
+    "added_updates": 16,                // 实际并入的进展条数（按 id 去重后的新增）
+    "added_links": 6                    // 实际并入的产出条数
+  }
+}
+```
+
+- 载入（`normalizeState`）时静默清洗：`at` 非法 → 整条丢弃；计数非负整数之外 → 0；`base` 截断。
+- 刷新成功即更新 last_sync；刷新没有内容变化时不进撤销栈，但 last_sync 仍更新为本次时间。
+
+### 12.2 差异摘要（drift）
+
+```jsonc
+{
+  "behind": true,                 // 云端是否有本机没有的内容
+  "cloud_total": 25,
+  "local_total": 25,
+  "missing_ideas": 0,             // 云端有、本机没有的想法数
+  "missing_updates": 16,          // 云端有、本机没有的进展数（按 id 精确计数）
+  "missing_links": 6,
+  "changed_ideas": 4,             // 有云端更新的已有想法数
+  "local_only_ideas": 0,          // 本机有、云端没有（刷新不会删）
+  "checked_at": "2026-11-09T14:30:00.000Z"
+}
+```
+
+判定：云端摘要 `n_updates` / `n_links` 比本机多，或云端 `updated_at` 比本机新 → 拉该条详情，按进展/产出 `id` 精确计数；本机没有的想法直接按云端摘要计数。刷新后按同一规则必须得到 `behind: false`。
+
+### 12.3 新端点
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/continuity` | 连续性状态。**永远 200**（云端不可达/未配置 Key 只降级，不阻塞列表与本地功能）：`{ ok, mode, applicable, bidirectional:false, cloud:{configured,base,reachable,reason,error,latency_ms,checked_at}, lastSync, drift }`。未配置 Key → `reachable:false, reason:'no-key', drift:null`；云端不可达 → `reason:'unreachable'`，鉴权失败 → `'auth'`，`error` 已脱敏；`mode:'cloud'` 时 `applicable:false, drift:null` 且不联网。 |
+| POST | `/api/continuity/refresh` | 从云端增量刷新到本机（不需要切换模式，只写本机 store）。成功 `{ ok, imported, updated, fetched, added_updates, added_links, cloud_total, before, drift, lastSync }`；未配置 Key 400；网络/超时 502；401/403 原样映射。 |
+
+刷新语义复用 `lib/import-local.mjs` 的合并规则：按 `idea_no` 合并，两边都有的想法云端字段为准，`updates`/`links` 按 `id` 取并集（重复刷新幂等、不产生重复进展），本机独有的想法/进展/产出保留、不删数据。有内容变化时进本机撤销栈（label「从云端刷新灵感池」，可整体撤销）。
+
+### 12.4 Client
+
+- 本机模式面板顶部常驻状态条（`ip-continuity`）：云端可达性、差异摘要、上次刷新时间；有差异 →「从云端刷新」，不可达 →「重试」，未配置 Key →「设置」。纯本机用户（未配置且从未刷新）不显示，避免打扰。
+- 设置 →「数据迁移」之后新增「云端连续性」区块：云端状态 / 上次刷新 / 差异 / 刷新按钮 + 单向说明。
+- 降级：连续性检查在 boot 后异步进行，不阻塞列表与本地功能；不可达不重复弹 toast（状态条 + 设置内联说明各一次）。
+- 文案必须明确「单向刷新，不是双向同步」。
